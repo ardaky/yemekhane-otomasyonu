@@ -1,4 +1,3 @@
-// Alerjen sorguları (Aşama 4: kullanıcının alerjenleri)
 const { yazma, okuma } = require('./baglanti');
 
 async function tumu() {
@@ -6,7 +5,6 @@ async function tumu() {
   return satirlar;
 }
 
-// Kullanıcının seçtiği alerjenlerin id'leri · replikadan
 async function kullanicininkiler(kullaniciId) {
   const [satirlar] = await okuma.query(
     'SELECT alerjen_id FROM kullanici_alerjenleri WHERE kullanici_id = ?',
@@ -15,9 +13,8 @@ async function kullanicininkiler(kullaniciId) {
   return satirlar.map((s) => s.alerjen_id);
 }
 
-// Kullanıcının alerjenlerinin adları · menü uyarısı için, replikadan.
-// (v_menu_detay alerjen adlarını alfabetik, id'leri sayı sırasıyla verir; iki listeyi
-// sıra ile eşleştirmek yanlış olur, bu yüzden adlar üzerinden karşılaştırılır.)
+// Menüdeki yemeklerle karşılaştırmak için alerjen adları lazım
+// (v_menu_detay alerjenleri ad olarak veriyor).
 async function kullanicininAdlari(kullaniciId) {
   const [satirlar] = await okuma.query(
     `SELECT a.ad FROM kullanici_alerjenleri ka
@@ -28,17 +25,16 @@ async function kullanicininAdlari(kullaniciId) {
   return satirlar.map((s) => s.ad);
 }
 
-// Seçimi tek transaction'da yeniler: eskileri silip yenileri ekler
+// eski seçimi silip yenisini yazıyor
 async function kaydet(kullaniciId, alerjenIdler) {
   const baglanti = await yazma.getConnection();
   try {
     await baglanti.beginTransaction();
     await baglanti.query('DELETE FROM kullanici_alerjenleri WHERE kullanici_id = ?', [kullaniciId]);
     if (alerjenIdler.length > 0) {
-      await baglanti.query(
-        'INSERT INTO kullanici_alerjenleri (kullanici_id, alerjen_id) VALUES ?',
-        [alerjenIdler.map((id) => [kullaniciId, id])]
-      );
+      await baglanti.query('INSERT INTO kullanici_alerjenleri (kullanici_id, alerjen_id) VALUES ?', [
+        alerjenIdler.map((id) => [kullaniciId, id]),
+      ]);
     }
     await baglanti.commit();
   } catch (err) {

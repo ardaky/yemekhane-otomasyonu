@@ -133,15 +133,19 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------
-  # UYGULAMA · Node.js + Express Web API (Aşama 2)
-  # Container içinde 8000 portunu dinler. Dışarıya port açılmaz:
-  # tarayıcı uygulamaya yalnızca Apache üzerinden (/api/...) ulaşır.
+  # Uygulama (Express Web API). 8000 portunu dinliyor, dışarıya port
+  # açmadım: tarayıcı uygulamaya sadece Apache üzerinden (/api/) ulaşıyor.
   # ---------------------------------------------------------------
   uygulama:
     build: ./uygulama
     restart: unless-stopped
     environment:
       <<: *uygulama-ortam
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/api/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     depends_on:
       mysql-primary:
         condition: service_healthy

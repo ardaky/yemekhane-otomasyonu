@@ -1,4 +1,3 @@
-// Profil · alerjen seçimi (Aşama 4)
 const alerjenVerisi = require('../veri/alerjenVerisi');
 const { KullaniciHatasi } = require('../hatalar');
 const { tamSayi } = require('./yardimci');

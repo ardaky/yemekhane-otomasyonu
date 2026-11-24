@@ -1,4 +1,3 @@
-// Yönetici paneli: menü oluşturma/düzenleme, doluluk ve puan raporu
 const yoneticiVerisi = require('../veri/yoneticiVerisi');
 const menuOnbellegi = require('../onbellek/menuOnbellegi');
 const { KullaniciHatasi } = require('../hatalar');
@@ -23,20 +22,27 @@ async function menuGetir(req, res) {
   res.json(menu);
 }
 
-// Formdan gelen fiyat ve yemek listesini denetler
-function menuGovdesi(govde) {
-  const ogrenciFiyati = Number(govde.ogrenciFiyati);
-  const personelFiyati = Number(govde.personelFiyati);
-  if (!(ogrenciFiyati >= 0) || !(personelFiyati >= 0)) {
-    throw new KullaniciHatasi('Fiyatlar sıfır ya da pozitif bir sayı olmalıdır.');
+function fiyat(deger, ad) {
+  const sayi = Number(deger);
+  if (deger === '' || deger === null || deger === undefined || !(sayi > 0) || sayi > 10000) {
+    throw new KullaniciHatasi(`${ad} 0 ile 10.000 TL arasında olmalıdır.`);
   }
+  return sayi;
+}
+
+// fiyatlar ve yemek listesi
+function menuBilgisi(govde) {
   const yemekIdler = Array.isArray(govde.yemekIdler)
     ? [...new Set(govde.yemekIdler.map((id) => tamSayi(id, 'yemek')))]
     : [];
   if (yemekIdler.length === 0) {
     throw new KullaniciHatasi('Menüye en az bir yemek ekleyin.');
   }
-  return { ogrenciFiyati, personelFiyati, yemekIdler };
+  return {
+    ogrenciFiyati: fiyat(govde.ogrenciFiyati, 'Öğrenci fiyatı'),
+    personelFiyati: fiyat(govde.personelFiyati, 'Personel fiyatı'),
+    yemekIdler,
+  };
 }
 
 // POST /api/yonetici/menuler
@@ -46,21 +52,24 @@ async function olustur(req, res) {
     yemekhaneId: tamSayi(govde.yemekhaneId, 'yemekhane'),
     tarih: tarih(govde.tarih),
     ogunId: tamSayi(govde.ogunId, 'öğün'),
-    ...menuGovdesi(govde),
+    ...menuBilgisi(govde),
   };
+  if (menu.tarih < bugun()) {
+    throw new KullaniciHatasi('Geçmiş bir tarihe menü eklenemez.');
+  }
   const menuId = await yoneticiVerisi.menuOlustur(menu);
-  // Yeni menü için önbellekte kayıt olmaz (boş menü önbelleğe yazılmaz);
-  // yine de aynı anahtar varsa temizlenir
-  await menuOnbellegi.sil(menu.yemekhaneId, menu.tarih, menu.ogunId);
+  if (!menuId) {
+    throw new KullaniciHatasi('Bu yemekhane, tarih ve öğün için zaten bir menü var.', 409);
+  }
   res.status(201).json({ menuId });
 }
 
 // PUT /api/yonetici/menuler/:id
-// Menü değişince önbellekteki eski kaydı silinir; bir sonraki istek yeni
-// menüyü veritabanından okuyup önbelleğe yazar.
+// Menü değişince önbellekteki eski hali siliniyor, sonraki istek yenisini okuyor.
 async function guncelle(req, res) {
   const menuId = tamSayi(req.params.id, 'menü');
-  const m = await yoneticiVerisi.menuGuncelle(menuId, menuGovdesi(req.body || {}));
+  const m = await yoneticiVerisi.menuGuncelle(menuId, menuBilgisi(req.body || {}));
+  if (!m) throw new KullaniciHatasi('Menü bulunamadı.', 404);
   await menuOnbellegi.sil(m.yemekhane_id, m.tarih, m.ogun_id);
   res.json({ menuId });
 }

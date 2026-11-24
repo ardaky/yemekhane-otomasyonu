@@ -1,8 +1,6 @@
-// Rezervasyon sorguları
 const { yazma, okuma, yordam } = require('./baglanti');
 
-// Para hareketi yapan işlemler stored procedure ile, kaynakta yapılır.
-// Aşama 4: yordam porsiyonu da alır ('tam' | 'yarim').
+// para hareketi olan işlemleri hocanın verdiği procedure'ler yapıyor
 function yap(kullaniciId, menuId, porsiyon) {
   return yordam('sp_rezervasyon_yap', [kullaniciId, menuId, porsiyon]);
 }
@@ -11,20 +9,17 @@ function iptal(kullaniciId, rezervasyonId) {
   return yordam('sp_rezervasyon_iptal', [kullaniciId, rezervasyonId]);
 }
 
-// Rezervasyonlarım listesi · replikadan
 async function listele(kullaniciId) {
   const [satirlar] = await okuma.query(
-    `SELECT r.id, r.durum, r.porsiyon, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
+    `SELECT r.id, r.durum, r.porsiyon, r.ucret,
             m.id AS menu_id, m.tarih, o.ad AS ogun, yh.ad AS yemekhane,
-            TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
             (r.durum = 'aktif' AND NOW() < TIMESTAMP(m.tarih, o.son_saat)) AS iptal_edilebilir,
             d.puan
        FROM rezervasyonlar r
        JOIN menuler m       ON m.id  = r.menu_id
        JOIN ogunler o       ON o.id  = m.ogun_id
        JOIN yemekhaneler yh ON yh.id = m.yemekhane_id
-       LEFT JOIN degerlendirmeler d
-              ON d.menu_id = r.menu_id AND d.kullanici_id = r.kullanici_id
+       LEFT JOIN degerlendirmeler d ON d.menu_id = r.menu_id AND d.kullanici_id = r.kullanici_id
       WHERE r.kullanici_id = ?
       ORDER BY m.tarih DESC, o.sira DESC`,
     [kullaniciId]
@@ -32,8 +27,7 @@ async function listele(kullaniciId) {
   return satirlar;
 }
 
-// Değerlendirme yazılmadan hemen önce kontrol edilir; yazmayla tutarlı
-// olsun diye kaynaktan okunur.
+// değerlendirme kaydetmeden hemen önce bakılıyor, o yüzden kaynaktan
 async function kullanildiMi(kullaniciId, menuId) {
   const [satirlar] = await yazma.query(
     `SELECT 1 FROM rezervasyonlar

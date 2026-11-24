@@ -1,20 +1,17 @@
-// Rezervasyon yapma, iptal ve listeleme
 const rezervasyonVerisi = require('../veri/rezervasyonVerisi');
 const { KullaniciHatasi } = require('../hatalar');
 const { tamSayi } = require('./yardimci');
 
 // POST /api/rezervasyonlar  { menuId, porsiyon }
-// Yordam kaynakta çalışır ve güncel bakiyeyi döndürür. Arayüz rezervasyondan
-// hemen sonra bu bakiyeyi gösterir: replikadan okusaydık replikasyon gecikmesi
-// yüzünden eski bakiye görünebilirdi.
+// Procedure kaynakta çalışıp yeni bakiyeyi döndürüyor. Ekranda bu bakiyeyi
+// gösteriyoruz; replikadan okusaydık replikasyon gecikmesi yüzünden eski
+// bakiye görünebilirdi.
 async function yap(req, res) {
-  const govde = req.body || {};
-  const menuId = tamSayi(govde.menuId, 'menü');
-  const porsiyon = govde.porsiyon || 'tam';
-  if (!['tam', 'yarim'].includes(porsiyon)) {
+  const menuId = tamSayi(req.body && req.body.menuId, 'menü');
+  const porsiyon = (req.body && req.body.porsiyon) || 'tam';
+  if (porsiyon !== 'tam' && porsiyon !== 'yarim') {
     throw new KullaniciHatasi('Geçersiz porsiyon seçimi.');
   }
-  // "Kahvaltıda yarım porsiyon yok" ve %60 ücret kuralını yordam uygular
   const sonuc = await rezervasyonVerisi.yap(req.kullanici.kullaniciId, menuId, porsiyon);
   res.status(201).json({
     rezervasyonId: sonuc.rezervasyon_id,
@@ -44,10 +41,7 @@ async function listele(req, res) {
       tarih: s.tarih,
       ogun: s.ogun,
       yemekhane: s.yemekhane,
-      rezervasyonSon: s.rezervasyon_son,
       iptalEdilebilir: s.iptal_edilebilir === 1,
-      kullanmaZamani: s.kullanma_zamani,
-      iptalZamani: s.iptal_zamani,
       puan: s.puan,
     }))
   );

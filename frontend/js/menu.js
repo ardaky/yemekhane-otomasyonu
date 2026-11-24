@@ -1,21 +1,21 @@
-// Günün menüsü ekranı
+// Günün menüsü
 const secim = document.getElementById('secim');
 const alan = document.getElementById('menu');
 const mesaj = document.getElementById('mesaj');
 
 async function basla() {
-  await sayfaBaslat('Günün Menüsü', '/menu.html');
-  const { yemekhaneler, ogunler, bugun } = await api('/secenekler');
-
-  secim.yemekhane.innerHTML = yemekhaneler
-    .map((y) => `<option value="${y.id}">${esc(y.ad)}</option>`).join('');
-  secim.ogun.innerHTML = ogunler
-    .map((o) => `<option value="${o.id}">${esc(o.ad)}</option>`).join('');
-  secim.ogun.value = 2;          // varsayılan: öğle
-  secim.tarih.value = bugun;
-
-  secim.addEventListener('change', yukle);
-  yukle();
+  try {
+    await sayfaBaslat('Günün Menüsü', '/menu.html');
+    const { yemekhaneler, ogunler, bugun } = await api('/secenekler');
+    secim.yemekhane.innerHTML = yemekhaneler.map((y) => `<option value="${y.id}">${esc(y.ad)}</option>`).join('');
+    secim.ogun.innerHTML = ogunler.map((o) => `<option value="${o.id}">${esc(o.ad)}</option>`).join('');
+    secim.ogun.selectedIndex = 1; // açılışta öğle
+    secim.tarih.value = bugun;
+    secim.addEventListener('change', yukle);
+    yukle();
+  } catch (hata) {
+    bildir(mesaj, hata.message);
+  }
 }
 
 async function yukle() {
@@ -50,10 +50,12 @@ function ciz(menu) {
       <div class="etiketler">
         ${y.vejetaryen ? '<span class="etiket etiket-vejetaryen">Vejetaryen</span>' : ''}
         ${y.alerjenler.map((a) => y.uyarilar.includes(a)
-          ? `<span class="etiket etiket-uyari" title="Profilinde bu alerjeni seçtin">⚠ ${esc(a)}</span>`
+          ? `<span class="etiket etiket-uyari">⚠ ${esc(a)}</span>`
           : `<span class="etiket">${esc(a)}</span>`).join('')}
       </div>
     </li>`).join('');
+
+  const uyariliYemekler = menu.yemekler.filter((y) => y.uyarilar.length).map((y) => y.ad);
 
   alan.innerHTML = `
     <article class="kart">
@@ -61,16 +63,15 @@ function ciz(menu) {
       <p class="soluk">${tarihYaz(menu.tarih)}</p>
       <div class="menu-ozet">
         <span class="etiket etiket-sari">${tl(menu.fiyat)}</span>
-        ${menu.yarimFiyat !== null ? `<span class="etiket etiket-sari">Yarım porsiyon ${tl(menu.yarimFiyat)}</span>` : ''}
+        ${menu.yarimFiyat ? `<span class="etiket etiket-sari">Yarım porsiyon ${tl(menu.yarimFiyat)}</span>` : ''}
         <span class="etiket etiket-mor">Toplam ${menu.toplamKalori} kcal</span>
         <span class="etiket">Son rezervasyon ${menu.rezervasyonSon.slice(11, 16)}</span>
       </div>
-      ${menu.alerjenUyarisi ? `<p class="bildirim bildirim-hata uyari-kutu" role="alert">
-        ⚠ Bu menüde alerjen olarak seçtiğin maddeleri içeren yemekler var:
-        <strong>${esc(menu.yemekler.filter((y) => y.uyarilar.length).map((y) => y.ad).join(', '))}</strong></p>` : ''}
+      ${uyariliYemekler.length ? `<p class="bildirim bildirim-hata uyari-kutu">
+        ⚠ Alerjenlerini içeren yemekler var: <strong>${esc(uyariliYemekler.join(', '))}</strong></p>` : ''}
       <ul class="yemek-listesi">${yemekler}</ul>
     </article>
-    <a class="dugme dugme-tam" href="/haftalik.html" style="text-align:center">Rezervasyon için haftalık menüye git</a>`;
+    <a class="dugme dugme-tam" href="/haftalik.html">Rezervasyon için haftalık menüye git</a>`;
 }
 
 basla();

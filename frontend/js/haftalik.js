@@ -1,29 +1,35 @@
-// Haftalık menü ve rezervasyon ekranı
+// Haftalık menü ve rezervasyon
 const secYemekhane = document.getElementById('yemekhane');
 const alan = document.getElementById('hafta');
 const mesaj = document.getElementById('mesaj');
 const aralik = document.getElementById('aralik');
 
-let baslangic;     // gösterilen haftanın ilk günü
-let bugunTarihi;   // "BUGÜN" işareti için
-let menuler = [];  // sunucudan gelen liste; rezervasyondan sonra yerinde güncellenir
+let baslangic;    // gösterilen haftanın ilk günü
+let bugunTarihi;
+let menuler = [];
 
 async function basla() {
-  await sayfaBaslat('Haftalık Menü', '/haftalik.html');
-  const { yemekhaneler, bugun } = await api('/secenekler');
-  secYemekhane.innerHTML = yemekhaneler
-    .map((y) => `<option value="${y.id}">${esc(y.ad)}</option>`).join('');
-  baslangic = bugun;
-  bugunTarihi = bugun;
+  try {
+    await sayfaBaslat('Haftalık Menü', '/haftalik.html');
+    const { yemekhaneler, bugun } = await api('/secenekler');
+    secYemekhane.innerHTML = yemekhaneler.map((y) => `<option value="${y.id}">${esc(y.ad)}</option>`).join('');
+    baslangic = bugun;
+    bugunTarihi = bugun;
+  } catch (hata) {
+    bildir(mesaj, hata.message);
+    return;
+  }
 
   secYemekhane.addEventListener('change', yukle);
   document.getElementById('onceki').addEventListener('click', () => { baslangic = gunEkle(baslangic, -7); yukle(); });
   document.getElementById('sonraki').addEventListener('click', () => { baslangic = gunEkle(baslangic, 7); yukle(); });
-  alan.addEventListener('click', rezervasyonTiklandi);
+  alan.addEventListener('click', rezervasyonYap);
+  alan.addEventListener('change', porsiyonDegisti);
   yukle();
 }
 
 async function yukle() {
+  mesaj.hidden = true;
   aralik.textContent = `${tarihYaz(baslangic, false)} – ${tarihYaz(gunEkle(baslangic, 6), false)}`;
   try {
     const p = new URLSearchParams({ yemekhane: secYemekhane.value, baslangic });
@@ -34,32 +40,35 @@ async function yukle() {
   }
 }
 
-// Menünün durumuna göre düğme: rezerve, kullanıldı, süresi doldu, dolu ya da "Rezerve et"
 function dugme(m) {
   if (m.rezervasyonDurum === 'aktif') {
     return `<span class="etiket etiket-mor">✓ Rezerve${m.rezervasyonPorsiyon === 'yarim' ? ' · yarım' : ''}</span>`;
   }
-  if (m.rezervasyonDurum === 'kullanildi') {
-    return '<span class="etiket">Kullanıldı</span>';
-  }
-  if (m.suresiDoldu) {
-    return '<button class="dugme dugme-kucuk" disabled>Süre doldu</button>';
-  }
-  if (m.bosYer <= 0) {
-    return '<button class="dugme dugme-kucuk" disabled>Dolu</button>';
-  }
+  if (m.rezervasyonDurum === 'kullanildi') return '<span class="etiket">Kullanıldı</span>';
+  if (m.suresiDoldu) return '<button class="dugme dugme-kucuk" disabled>Süre doldu</button>';
+  if (m.bosYer <= 0) return '<button class="dugme dugme-kucuk" disabled>Dolu</button>';
   return `<button class="dugme dugme-kucuk" data-menu="${m.menuId}">Rezerve et</button>`;
 }
 
-// Aşama 4 · yarım porsiyon seçimi: yalnızca öğle/akşamda ve rezervasyon yapılabiliyorsa
+function rezerveEdilebilir(m) {
+  const yokYaDaIptal = !m.rezervasyonDurum || m.rezervasyonDurum === 'iptal';
+  return yokYaDaIptal && !m.suresiDoldu && m.bosYer > 0;
+}
+
+// öğle ve akşamda tam / yarım seçimi (kahvaltıda yok)
 function porsiyonSecimi(m) {
-  const yapilabilir = !m.rezervasyonDurum || m.rezervasyonDurum === 'iptal';
-  if (!m.yarimPorsiyonVar || !yapilabilir || m.suresiDoldu || m.bosYer <= 0) return '';
+  if (!m.yarimPorsiyonVar || !rezerveEdilebilir(m)) return '';
   return `
-    <div class="porsiyon-secim" role="radiogroup" aria-label="Porsiyon">
-      <label><input type="radio" name="porsiyon-${m.menuId}" value="tam" checked><span>Tam · ${tl(m.fiyat)}</span></label>
-      <label><input type="radio" name="porsiyon-${m.menuId}" value="yarim"><span>Yarım · ${tl(m.yarimFiyat)}</span></label>
+    <div class="porsiyon-secim">
+      <label><input type="radio" name="porsiyon-${m.menuId}" value="tam" checked><span>Tam</span></label>
+      <label><input type="radio" name="porsiyon-${m.menuId}" value="yarim"><span>Yarım</span></label>
     </div>`;
+}
+
+// ekranda gösterilecek fiyat: rezervasyon yarımsa ya da yarım seçiliyse yarım fiyat
+function gosterilenFiyat(m, secilen) {
+  const yarim = m.rezervasyonDurum === 'aktif' ? m.rezervasyonPorsiyon === 'yarim' : secilen === 'yarim';
+  return tl(yarim ? m.yarimFiyat : m.fiyat);
 }
 
 function ciz() {
@@ -67,12 +76,11 @@ function ciz() {
     alan.innerHTML = '<div class="kart bos-durum">Bu hafta için menü yok.</div>';
     return;
   }
-  // Menüleri güne göre grupla: her gün bir kart, öğünler kartın içinde satır
   const gunler = {};
   for (const m of menuler) (gunler[m.tarih] ??= []).push(m);
 
   alan.innerHTML = `
-    <p class="kaydir-ipucu">Günler arasında geçmek için yana kaydır ›</p>
+    <p class="kaydir-ipucu">Diğer günler için yana kaydır ›</p>
     <div class="hafta-izgara">
       ${Object.entries(gunler).map(([tarih, liste]) => `
         <article class="gun-kart">
@@ -81,13 +89,13 @@ function ciz() {
             <div class="ogun-satir">
               <div class="ogun-ust">
                 <span class="ogun-ad">${esc(m.ogun)}
-                  ${m.alerjenUyarisi ? '<span class="etiket etiket-uyari" title="Bu menüde alerjenini içeren yemek var">⚠ alerjen</span>' : ''}</span>
+                  ${m.alerjenUyarisi ? '<span class="etiket etiket-uyari">⚠ alerjen</span>' : ''}</span>
                 <span class="etiket etiket-sari">${m.bosYer} boş</span>
               </div>
               <p class="ogun-yemekler soluk">${esc(m.yemekler)}</p>
               ${porsiyonSecimi(m)}
               <div class="ogun-alt">
-                <span class="ogun-bilgi"><span class="fiyat">${tl(m.fiyat)}</span>
+                <span class="ogun-bilgi"><span class="fiyat" id="fiyat-${m.menuId}">${gosterilenFiyat(m, 'tam')}</span>
                   <span class="soluk"> · son ${m.rezervasyonSon.slice(11, 16)}</span></span>
                 ${dugme(m)}
               </div>
@@ -96,25 +104,38 @@ function ciz() {
     </div>`;
 }
 
-async function rezervasyonTiklandi(olay) {
+function porsiyonDegisti(olay) {
+  const radyo = olay.target.closest('input[type=radio]');
+  if (!radyo) return;
+  const menuId = Number(radyo.name.split('-')[1]);
+  const m = menuler.find((x) => x.menuId === menuId);
+  document.getElementById('fiyat-' + menuId).textContent = gosterilenFiyat(m, radyo.value);
+}
+
+async function rezervasyonYap(olay) {
   const dugmeEl = olay.target.closest('button[data-menu]');
   if (!dugmeEl) return;
   const menuId = Number(dugmeEl.dataset.menu);
   const secili = alan.querySelector(`input[name="porsiyon-${menuId}"]:checked`);
   const porsiyon = secili ? secili.value : 'tam';
   dugmeEl.disabled = true;
+
   try {
     const sonuc = await api('/rezervasyonlar', { yontem: 'POST', govde: { menuId, porsiyon } });
-    // Bakiye, yordamın kaynaktan döndürdüğü değerdir (replikasyon gecikmesinden etkilenmez).
+    // bakiye procedure'ün döndürdüğü değer, yani kaynaktaki güncel bakiye
     const ne = sonuc.porsiyon === 'yarim' ? 'Yarım porsiyon rezervasyon' : 'Rezervasyon';
-    bildir(mesaj, `${ne} yapıldı. ${tl(sonuc.ucret)} düşüldü, güncel bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
-    // Listeyi replikadan yeniden çekmek yerine yerinde güncelle: replika bu
-    // rezervasyonu henüz almamış olabilir.
+    bildir(mesaj, `${ne} yapıldı. ${tl(sonuc.ucret)} düşüldü, bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
+
+    // Listeyi replikadan tekrar çekmiyoruz, replika bu rezervasyonu henüz
+    // almamış olabilir. Onun yerine o menüyü burada güncelliyoruz.
     const m = menuler.find((x) => x.menuId === menuId);
     m.rezervasyonDurum = 'aktif';
     m.rezervasyonPorsiyon = sonuc.porsiyon;
     m.bosYer -= 1;
+    const izgara = alan.querySelector('.hafta-izgara');
+    const kaydirma = izgara ? izgara.scrollLeft : 0;
     ciz();
+    alan.querySelector('.hafta-izgara').scrollLeft = kaydirma; // telefonda aynı günde kal
   } catch (hata) {
     bildir(mesaj, hata.message);
     dugmeEl.disabled = false;

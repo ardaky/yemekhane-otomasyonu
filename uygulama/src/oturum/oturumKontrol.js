@@ -1,8 +1,5 @@
-// =====================================================================
-// Oturum kontrolü (Express middleware)
-// Tarayıcı her istekte "oturum" çerezini gönderir. Bu fonksiyon çerezdeki
-// token'ı depoda arar; bulursa kullanıcıyı req.kullanici'ya koyar.
-// =====================================================================
+// Tarayıcı her istekte "oturum" çerezini gönderiyor. Token Redis'te varsa
+// kullanıcı bilgisini req.kullanici'ya koyuyoruz.
 const depo = require('./oturumDeposu');
 
 const CEREZ = 'oturum';
@@ -14,7 +11,6 @@ async function girisGerekli(req, res, next) {
     return res.status(401).json({ hata: 'Oturumunuz kapalı. Lütfen giriş yapın.' });
   }
   req.kullanici = bilgi;
-  req.token = token;
   next();
 }
 

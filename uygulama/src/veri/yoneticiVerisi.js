@@ -1,17 +1,13 @@
-// Yönetici paneli sorguları
 const { yazma, okuma } = require('./baglanti');
-const { KullaniciHatasi } = require('../hatalar');
 
-// Menü bazında doluluk ve ortalama puan raporu · replikadan
+// menü bazında doluluk ve ortalama puan
 async function menuRaporu(baslangic, bitis) {
   const [satirlar] = await okuma.query(
-    `SELECT d.menu_id, d.tarih, d.yemekhane_id, d.yemekhane, d.ogun_id, d.ogun,
-            d.kapasite, d.rezerve, d.bos_yer, d.doluluk_yuzde,
-            p.oy_sayisi, p.ortalama_puan,
-            m.ogrenci_fiyati, m.personel_fiyati
+    `SELECT d.menu_id, d.tarih, d.yemekhane, d.ogun,
+            d.kapasite, d.rezerve, d.doluluk_yuzde,
+            p.oy_sayisi, p.ortalama_puan
        FROM v_menu_doluluk d
        JOIN v_menu_puan p ON p.menu_id = d.menu_id
-       JOIN menuler m     ON m.id = d.menu_id
        JOIN ogunler o     ON o.id = d.ogun_id
       WHERE d.tarih BETWEEN ? AND ?
       ORDER BY d.tarih, d.yemekhane_id, o.sira`,
@@ -20,7 +16,6 @@ async function menuRaporu(baslangic, bitis) {
   return satirlar;
 }
 
-// Menü formundaki yemek listesi · replikadan
 async function tumYemekler() {
   const [satirlar] = await okuma.query(
     `SELECT y.id, y.ad, k.ad AS kategori, y.kalori, y.vejetaryen
@@ -31,8 +26,8 @@ async function tumYemekler() {
   return satirlar;
 }
 
-// Düzenleme formu için tek menü. Yönetici menüyü kaydedip hemen düzenlemeye
-// dönebileceği için (replikasyon gecikmesi) kaynaktan okunur.
+// Düzenleme formu için. Yönetici kaydettikten hemen sonra düzenlemeye
+// dönebildiği için kaynaktan okuyoruz.
 async function menuGetir(menuId) {
   const [[menu]] = await yazma.query(
     `SELECT id, yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati
@@ -40,15 +35,13 @@ async function menuGetir(menuId) {
     [menuId]
   );
   if (!menu) return null;
-  const [yemekler] = await yazma.query(
-    'SELECT yemek_id FROM menu_yemekleri WHERE menu_id = ?',
-    [menuId]
-  );
+  const [yemekler] = await yazma.query('SELECT yemek_id FROM menu_yemekleri WHERE menu_id = ?', [menuId]);
   menu.yemekIdler = yemekler.map((y) => y.yemek_id);
   return menu;
 }
 
-// Menü + yemekleri tek transaction'da yazılır: ya hepsi kaydedilir ya hiçbiri
+// Menü ve yemekleri tek transaction'da kaydediliyor, yarım kayıt kalmasın.
+// Aynı yemekhane/tarih/öğün için menü zaten varsa null döner.
 async function menuOlustur(m) {
   const baglanti = await yazma.getConnection();
   try {
@@ -58,27 +51,23 @@ async function menuOlustur(m) {
        VALUES (?, ?, ?, ?, ?)`,
       [m.yemekhaneId, m.tarih, m.ogunId, m.ogrenciFiyati, m.personelFiyati]
     );
-    const menuId = sonuc.insertId;
-    await baglanti.query(
-      'INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES ?',
-      [m.yemekIdler.map((yemekId) => [menuId, yemekId])]
-    );
+    await baglanti.query('INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES ?', [
+      m.yemekIdler.map((yemekId) => [sonuc.insertId, yemekId]),
+    ]);
     await baglanti.commit();
-    return menuId;
+    return sonuc.insertId;
   } catch (err) {
     await baglanti.rollback();
-    if (err.code === 'ER_DUP_ENTRY') {
-      throw new KullaniciHatasi('Bu yemekhane, tarih ve öğün için zaten bir menü var.', 409);
-    }
+    if (err.code === 'ER_DUP_ENTRY') return null;
     throw err;
   } finally {
     baglanti.release();
   }
 }
 
-// Fiyatlar ve yemekler güncellenir. Yemekhane, tarih ve öğün değişmez:
-// menüye bağlı rezervasyonlar o güne ve öğüne yapılmıştır.
-// Önbellek anahtarını kurabilmek için menünün yemekhane/tarih/öğün bilgisini döndürür.
+// Sadece fiyatlar ve yemekler değişebiliyor. Tarih/öğün değişirse o menüye
+// yapılmış rezervasyonlar anlamsız hale gelir.
+// Önbellek anahtarı için menünün yemekhane, tarih ve öğününü döndürür.
 async function menuGuncelle(menuId, m) {
   const baglanti = await yazma.getConnection();
   try {
@@ -87,17 +76,18 @@ async function menuGuncelle(menuId, m) {
       'SELECT yemekhane_id, tarih, ogun_id FROM menuler WHERE id = ? FOR UPDATE',
       [menuId]
     );
-    if (!mevcut) throw new KullaniciHatasi('Menü bulunamadı.', 404);
-
+    if (!mevcut) {
+      await baglanti.rollback();
+      return null;
+    }
     await baglanti.query(
       'UPDATE menuler SET ogrenci_fiyati = ?, personel_fiyati = ? WHERE id = ?',
       [m.ogrenciFiyati, m.personelFiyati, menuId]
     );
     await baglanti.query('DELETE FROM menu_yemekleri WHERE menu_id = ?', [menuId]);
-    await baglanti.query(
-      'INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES ?',
-      [m.yemekIdler.map((yemekId) => [menuId, yemekId])]
-    );
+    await baglanti.query('INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES ?', [
+      m.yemekIdler.map((yemekId) => [menuId, yemekId]),
+    ]);
     await baglanti.commit();
     return mevcut;
   } catch (err) {

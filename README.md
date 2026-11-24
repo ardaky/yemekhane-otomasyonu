@@ -1,7 +1,8 @@
-# Yemekhane Otomasyonu · Başlangıç Paketi
+# Yemekhane Otomasyonu
 
-Web Teknolojileri dönem ödevinin hazır altyapısı. Veritabanı şeması, örnek veri, kaynak-replika
-replikasyonu, Redis ve Apache tek komutla çalışır. Sizin yazacağınız kısım **uygulama servisi ve arayüzdür**.
+Web Teknolojileri dönem ödevi. Hocanın verdiği başlangıç paketinin (veritabanı, replika, Redis,
+Apache) üzerine Node.js + Express ile bir Web API (`uygulama/`) ve HTML/CSS/JS arayüz (`frontend/`)
+eklendi. Rapor: `rapor/rapor.pdf`.
 
 ## Hızlı başlangıç
 
@@ -9,7 +10,7 @@ Gerekenler: Docker Desktop (Windows/macOS) ya da Docker Engine + Compose v2 (Lin
 
 ```bash
 git clone <kendi-deponuz>
-cd yemekhane-baslangic
+cd yemekhane-otomasyonu
 docker compose up -d
 docker compose ps -a
 ```
@@ -22,6 +23,7 @@ docker compose ps -a
 | mysql-replica | `Up (healthy)` |
 | redis | `Up (healthy)` |
 | frontend | `Up (healthy)` |
+| uygulama | `Up (healthy)` |
 | replica-setup | `Exited (0)` — işini yapıp çıkar, bu normaldir |
 
 `replica-setup` yalnızca `docker compose ps -a` ile görünür (`-a` olmadan çıkmış container'lar listelenmez).
@@ -31,12 +33,15 @@ Tarayıcıda: <http://localhost:8080>
 ## Klasör yapısı
 
 ```
-docker-compose.yml        servisler; uygulama servisi yorum satırında
-db/init/01_sema.sql       12 tablo, 3 view, 4 stored procedure
-db/init/02_ornek_veri.sql 30 kullanıcı, 52 yemek, 84 menü, ~365 rezervasyon
-db/replica-setup.sh       replikayı bir kez kurar ve salt okunur yapar
-apache/                   Apache 2.4 imajı ve yönlendirme ayarı (MVC / Web API)
-frontend/                 Apache'nin sunduğu HTML/CSS (css/temel.css başlangıç stilleri)
+docker-compose.yml          servisler (uygulama dahil)
+db/init/01_sema.sql         12 tablo, 3 view, 4 stored procedure
+db/init/02_ornek_veri.sql   30 kullanıcı, 52 yemek, 84 menü, ~365 rezervasyon
+db/init/04_degisiklik.sql   Aşama 4 migration: yarım porsiyon, kullanıcı alerjenleri
+db/replica-setup.sh         replikayı bir kez kurar ve salt okunur yapar
+apache/                     Apache 2.4 imajı ve yönlendirme ayarı (Web API modunda)
+uygulama/                   Express Web API (rotalar, controller'lar, veri katmanı, Redis)
+frontend/                   HTML/CSS/JS arayüz, veriyi fetch ile /api/'den alır
+rapor/                      rapor (PDF), ekran görüntüleri, komut çıktıları
 ```
 
 `db/init` içindeki dosyalar **yalnızca veritabanı ilk kez oluşturulurken** çalışır. Sonradan
@@ -64,18 +69,14 @@ Veritabanı adı: `yemekhane`. Bu şifreler ders ortamı içindir; gerçek bir s
 
 ## Test hesapları
 
-Tüm kullanıcıların şifresi **`12345`** (bcrypt, `$2a$`, cost 10).
-
-E-postalar `db/init/03_hesaplar.sql` ile düzenlenir: öğrencilerde öğrenci numarası
-(`251229001@ktun.edu.tr`; 25 giriş yılı, 1229 fakülte/bölüm, 001 sıra), personel ve
-yöneticide `ad.soyad@ktun.edu.tr`.
+Tüm kullanıcıların şifresi **`Yemek2026!`** (bcrypt, `$2a$`, cost 10).
 
 | E-posta | Rol | Not |
 |---|---|---|
-| leyla.arslan@ktun.edu.tr | yönetici | yönetici paneli için |
-| murat.kaya@ktun.edu.tr | personel | personel fiyatı |
-| 251229001@ktun.edu.tr | öğrenci (Ayşe Demir) | bakiyesi 12,50 TL — "Bakiye yetersiz." hatasını denemek için |
-| 251229002@ktun.edu.tr | öğrenci (Mehmet Yıldız) | normal bakiye |
+| leyla.arslan@kampus.edu.tr | yönetici | yönetici paneli için |
+| murat.kaya@kampus.edu.tr | personel | personel fiyatı |
+| ayse.demir@ogr.kampus.edu.tr | öğrenci | bakiyesi 12,50 TL — "Bakiye yetersiz." hatasını denemek için |
+| mehmet.yildiz@ogr.kampus.edu.tr | öğrenci | normal bakiye |
 
 Diğer kullanıcılar: `SELECT eposta, rol, bakiye FROM kullanicilar;`
 
@@ -188,7 +189,15 @@ komut satırına yazdığınız için çıkan uyarı satırını önemsemeyin.
 docker compose exec -T mysql-primary mysql -uroot -pyemekhane_kok yemekhane < db/init/04_degisiklik.sql
 ```
 
-Replikaya ayrıca uygulamayın; değişiklik replikasyonla geçer. `03_hesaplar.sql` test hesaplarının e-posta ve şifrelerini düzenler.
+Replikaya ayrıca uygulamayın; değişiklik replikasyonla geçer. `03` numarası boş bırakılmıştır.
+
+Migration'dan sonra uygulamayı yeni haliyle derleyin ve Redis'teki eski yapıdaki menü kayıtlarını
+silin (oturumlar silinmez):
+
+```bash
+docker compose up -d --build uygulama
+docker compose exec redis sh -c "redis-cli --scan --pattern 'menu:*' | xargs -r redis-cli DEL"
+```
 
 ## Sıfırlama
 

@@ -13,14 +13,14 @@
 
     <section class="kart">
       <h2>Menü doluluk ve puan raporu</h2>
-      <form id="rapor-formu" class="satir-form" style="margin:0.5rem 0 0.75rem">
+      <form id="rapor-formu" class="satir-form rapor-form">
         <div><label for="r-baslangic">Başlangıç</label><input id="r-baslangic" type="date"></div>
         <div><label for="r-bitis">Bitiş</label><input id="r-bitis" type="date"></div>
       </form>
       <div class="tablo-kaydir">
         <table class="rapor-tablo">
           <thead>
-            <tr><th>Tarih</th><th>Yemekhane · Öğün</th><th>Doluluk</th><th>Puan</th><th></th></tr>
+            <tr><th>Menü</th><th>Doluluk</th><th>Puan</th><th></th></tr>
           </thead>
           <tbody id="rapor"></tbody>
         </table>
@@ -29,7 +29,7 @@
 
     <section class="kart" id="form-kart">
       <h2 id="form-baslik">Yeni menü</h2>
-      <form id="menu-formu" novalidate>
+      <form id="menu-formu">
         <div class="satir-form">
           <div class="tam">
             <label for="m-yemekhane">Yemekhane</label>
@@ -45,19 +45,19 @@
           </div>
           <div>
             <label for="m-ogrenci">Öğrenci fiyatı</label>
-            <input id="m-ogrenci" name="ogrenciFiyati" type="number" min="0" step="0.5" required>
+            <input id="m-ogrenci" name="ogrenciFiyati" type="number" min="0.5" max="10000" step="0.5" required>
           </div>
           <div>
             <label for="m-personel">Personel fiyatı</label>
-            <input id="m-personel" name="personelFiyati" type="number" min="0" step="0.5" required>
+            <input id="m-personel" name="personelFiyati" type="number" min="0.5" max="10000" step="0.5" required>
           </div>
         </div>
-        <div class="alan" style="margin-top:0.9rem">
+        <div class="alan yemek-alani">
           <label for="m-ara">Yemekler <span class="soluk" id="secili-sayi"></span></label>
-          <input id="m-ara" type="search" placeholder="Yemek ara" style="margin-bottom:0.5rem">
+          <input id="m-ara" type="search" placeholder="Yemek ara">
           <div class="yemek-secim" id="yemekler"></div>
         </div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <div class="dugmeler">
           <button class="dugme" type="submit" id="kaydet">Menüyü oluştur</button>
           <button class="dugme dugme-ikincil gizli" type="button" id="vazgec">Vazgeç</button>
         </div>

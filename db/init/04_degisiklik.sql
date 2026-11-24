@@ -1,43 +1,27 @@
--- =====================================================================
--- Yemekhane Otomasyonu · Migration 04 · Yemekhane Müdürlüğü değişiklik talebi
+-- Aşama 4: Yemekhane müdürlüğünün değişiklik talebi
+--   * öğle ve akşamda yarım porsiyon (tam fiyatın %60'ı), kahvaltıda yok
+--   * kullanıcının alerjenleri (menüde uyarı göstermek için)
 --
---   1. Yarım porsiyon: öğle ve akşamda seçilebilir, ücret tam fiyatın %60'ı.
---      Kahvaltıda yarım porsiyon yoktur. Geçmiş rezervasyonlar tam porsiyon sayılır.
---   2. Alerjen uyarısı: kullanıcı profilinde alerjenlerini seçer; menüde bu
---      alerjenleri içeren yemekler uyarıyla gösterilir.
---
--- Çalışan sistemde KAYNAKTA bir kez çalıştırılır; replikaya replikasyonla geçer:
+-- Çalışan sistemde sadece kaynağa uygulanır, replikaya replikasyonla geçer:
 --   docker compose exec -T mysql-primary mysql -uroot -pyemekhane_kok yemekhane < db/init/04_degisiklik.sql
--- Sıfırdan kurulumda db/init içinde olduğu için 01–03'ten sonra kendiliğinden çalışır.
---
--- Mevcut veri bozulmaz: yeni sütunlar varsayılan değerle eklenir, hiçbir satır silinmez.
--- =====================================================================
+-- Bir kez çalıştırılmalı (ikinci çalıştırmada ADD COLUMN hata verir).
+
 SET NAMES utf8mb4;
 USE yemekhane;
 
--- ---------------------------------------------------------------------
--- 1a. Hangi öğünde yarım porsiyon seçilebilir?
---     Kural koda değil veriye yazılır: ileride başka bir öğün eklenirse
---     yalnızca bu sütun ayarlanır.
--- ---------------------------------------------------------------------
+-- hangi öğünde yarım porsiyon olabileceği (kahvaltıda 0)
 ALTER TABLE ogunler
     ADD COLUMN yarim_porsiyon_var TINYINT(1) NOT NULL DEFAULT 1
-        COMMENT '1: yarım porsiyon seçilebilir'
         AFTER servis_bitis;
 
 UPDATE ogunler SET yarim_porsiyon_var = 0 WHERE ad = 'Kahvaltı';
 
--- ---------------------------------------------------------------------
--- 1b. Rezervasyonun porsiyonu.
---     DEFAULT 'tam' sayesinde mevcut bütün rezervasyonlar tam porsiyon olur.
--- ---------------------------------------------------------------------
+-- eski rezervasyonlar varsayılan değer sayesinde 'tam' oluyor
 ALTER TABLE rezervasyonlar
     ADD COLUMN porsiyon ENUM('tam', 'yarim') NOT NULL DEFAULT 'tam'
         AFTER durum;
 
--- ---------------------------------------------------------------------
--- 2. Kullanıcının alerjenleri (kullanıcı ile alerjen arasında çoka çok)
--- ---------------------------------------------------------------------
+-- kullanıcının seçtiği alerjenler
 CREATE TABLE kullanici_alerjenleri (
     kullanici_id  INT UNSIGNED     NOT NULL,
     alerjen_id    TINYINT UNSIGNED NOT NULL,
@@ -46,12 +30,8 @@ CREATE TABLE kullanici_alerjenleri (
     CONSTRAINT fk_ka_alerjen   FOREIGN KEY (alerjen_id)   REFERENCES alerjenler (id)
 ) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 3. sp_rezervasyon_yap(kullanici_id, menu_id, porsiyon)
---    Yeni parametre: porsiyon ('tam' | 'yarim'; NULL ise 'tam').
---    Dönen satır: rezervasyon_id, ucret, bakiye, porsiyon
---    Değişen yerler "YENİ" yorumuyla işaretlidir; geri kalanı 01'deki yordamla aynıdır.
--- ---------------------------------------------------------------------
+-- sp_rezervasyon_yap'a porsiyon parametresi eklendi ('tam' / 'yarim', NULL ise tam).
+-- Geri kalanı 01_sema.sql'deki haliyle aynı.
 DROP PROCEDURE IF EXISTS sp_rezervasyon_yap;
 
 DELIMITER $$
@@ -74,8 +54,8 @@ BEGIN
     DECLARE v_mevcut_id    INT UNSIGNED DEFAULT NULL;
     DECLARE v_mevcut_durum VARCHAR(12)  DEFAULT NULL;
     DECLARE v_rez_id       INT UNSIGNED DEFAULT NULL;
-    DECLARE v_porsiyon     VARCHAR(5)   DEFAULT NULL;   -- YENİ
-    DECLARE v_yarim_var    TINYINT      DEFAULT NULL;   -- YENİ
+    DECLARE v_porsiyon     VARCHAR(5)   DEFAULT NULL;
+    DECLARE v_yarim_var    TINYINT      DEFAULT NULL;
 
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
@@ -84,7 +64,6 @@ BEGIN
     END;
     DECLARE CONTINUE HANDLER FOR NOT FOUND BEGIN END;
 
-    -- YENİ: porsiyon denetimi (transaction açılmadan önce)
     SET v_porsiyon = COALESCE(p_porsiyon, 'tam');
     IF v_porsiyon NOT IN ('tam', 'yarim') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Geçersiz porsiyon seçimi.';
@@ -101,7 +80,6 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Hesabınız pasif durumda.';
     END IF;
 
-    -- YENİ: öğünün yarım porsiyona izin verip vermediği de okunur
     SELECT TIMESTAMP(m.tarih, o.son_saat), yh.kapasite, m.ogrenci_fiyati, m.personel_fiyati,
            o.yarim_porsiyon_var
       INTO v_son, v_kapasite, v_ogr_fiyat, v_per_fiyat, v_yarim_var
@@ -116,7 +94,6 @@ BEGIN
     IF NOW() >= v_son THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bu menü için rezervasyon süresi doldu.';
     END IF;
-    -- YENİ
     IF v_porsiyon = 'yarim' AND v_yarim_var = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bu öğünde yarım porsiyon seçilemez.';
     END IF;
@@ -137,7 +114,6 @@ BEGIN
     END IF;
 
     SET v_ucret = IF(v_rol = 'ogrenci', v_ogr_fiyat, v_per_fiyat);
-    -- YENİ: yarım porsiyon tam fiyatın %60'ı
     IF v_porsiyon = 'yarim' THEN
         SET v_ucret = ROUND(v_ucret * 0.60, 2);
     END IF;
@@ -150,7 +126,7 @@ BEGIN
         VALUES (p_kullanici_id, p_menu_id, 'aktif', v_porsiyon, v_ucret);
         SET v_rez_id = LAST_INSERT_ID();
     ELSE
-        -- Daha önce iptal edilmiş kayıt yeniden etkinleşir (YENİ: porsiyonu da güncellenir)
+        -- iptal edilmiş kayıt tekrar aktif oluyor
         UPDATE rezervasyonlar
            SET durum = 'aktif', porsiyon = v_porsiyon, ucret = v_ucret, olusturma = NOW(),
                iptal_zamani = NULL, kullanma_zamani = NULL

@@ -1,8 +1,7 @@
-// Kullanıcı sorguları
 const { yazma, okuma } = require('./baglanti');
 
-// Girişte kullanılır. Kaynaktan okunur: yeni açılmış ya da şifresi yeni
-// değişmiş bir hesap replikaya henüz geçmemiş olabilir.
+// Girişte kullanılıyor. Kaynaktan okuyoruz, yeni eklenen bir kullanıcı replikaya
+// henüz geçmemiş olabilir.
 async function epostaIleBul(eposta) {
   const [satirlar] = await yazma.query(
     `SELECT id, ad, soyad, eposta, sifre_hash, rol, aktif

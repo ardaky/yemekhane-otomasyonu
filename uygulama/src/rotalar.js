@@ -1,8 +1,5 @@
-// =====================================================================
-// Rotalar: hangi adrese gelen istek hangi controller fonksiyonuna gider.
-// Bu dosya sunucu.js'te "/api" önekiyle bağlanır; yani buradaki "/menu"
-// tarayıcıdan "/api/menu" olarak çağrılır.
-// =====================================================================
+// Adres -> controller eşleşmeleri. sunucu.js bunları /api altına bağlıyor,
+// yani buradaki '/menu' aslında '/api/menu'.
 const express = require('express');
 const { girisGerekli, yoneticiGerekli } = require('./oturum/oturumKontrol');
 const giris = require('./controllers/girisController');
@@ -15,40 +12,33 @@ const profil = require('./controllers/profilController');
 
 const rota = express.Router();
 
-// Sağlık kontrolü (başlangıç sayfası /api/ adresine bakıyordu)
 rota.get('/', (req, res) => res.json({ durum: 'çalışıyor' }));
 
-// Oturum
 rota.post('/giris', giris.giris);
-rota.post('/cikis', girisGerekli, giris.cikis);
-rota.get('/ben', girisGerekli, giris.ben);
+rota.post('/cikis', giris.cikis);
 
-// Bundan sonraki her rota giriş ister
+// buradan sonraki her şey giriş istiyor
 rota.use(girisGerekli);
 
-// Menü
+rota.get('/ben', giris.ben);
+
 rota.get('/secenekler', menu.secenekler);
 rota.get('/menu', menu.gununMenusu);
 rota.get('/menuler/haftalik', menu.haftalik);
 
-// Rezervasyon
 rota.get('/rezervasyonlar', rezervasyon.listele);
 rota.post('/rezervasyonlar', rezervasyon.yap);
 rota.post('/rezervasyonlar/:id/iptal', rezervasyon.iptal);
 
-// Bakiye
 rota.get('/bakiye', bakiye.ozet);
 rota.post('/bakiye/yukle', bakiye.yukle);
 
-// Değerlendirme
 rota.get('/degerlendirmeler', degerlendirme.liste);
 rota.post('/degerlendirmeler', degerlendirme.ekle);
 
-// Profil · alerjen seçimi (Aşama 4)
 rota.get('/profil/alerjenler', profil.alerjenler);
 rota.put('/profil/alerjenler', profil.alerjenleriKaydet);
 
-// Yönetici paneli
 rota.get('/yonetici/rapor', yoneticiGerekli, yonetici.rapor);
 rota.get('/yonetici/yemekler', yoneticiGerekli, yonetici.yemekler);
 rota.get('/yonetici/menuler/:id', yoneticiGerekli, yonetici.menuGetir);

@@ -1,23 +1,23 @@
-// Rezervasyonlarım ekranı: aktif, kullanıldı, iptal
+// Rezervasyonlarım: aktif, kullanıldı ve iptal edilenler
 const alan = document.getElementById('liste');
 const mesaj = document.getElementById('mesaj');
 let rezervasyonlar = [];
 
 const BOLUMLER = [
-  { durum: 'aktif',      baslik: 'Aktif',      etiket: 'etiket-mor', ad: 'Aktif' },
-  { durum: 'kullanildi', baslik: 'Kullanıldı', etiket: 'etiket-vejetaryen', ad: 'Kullanıldı' },
-  { durum: 'iptal',      baslik: 'İptal',      etiket: '', ad: 'İptal' },
+  { durum: 'aktif', baslik: 'Aktif', etiket: 'etiket-mor' },
+  { durum: 'kullanildi', baslik: 'Kullanıldı', etiket: 'etiket-vejetaryen' },
+  { durum: 'iptal', baslik: 'İptal', etiket: '' },
 ];
 
 async function basla() {
-  await sayfaBaslat('Rezervasyonlarım', '/rezervasyonlar.html');
-  alan.addEventListener('click', iptalTiklandi);
   try {
+    await sayfaBaslat('Rezervasyonlarım', '/rezervasyonlar.html');
     rezervasyonlar = await api('/rezervasyonlar');
     ciz();
   } catch (hata) {
     bildir(mesaj, hata.message);
   }
+  alan.addEventListener('click', iptalEt);
 }
 
 function eylem(r) {
@@ -48,7 +48,7 @@ function ciz() {
         <article class="ogun-kart">
           <div class="ogun-ust">
             <span class="ogun-ad">${tarihYaz(r.tarih)} · ${esc(r.ogun)}</span>
-            <span class="etiket ${b.etiket}">${b.ad}</span>
+            <span class="etiket ${b.etiket}">${b.baslik}</span>
           </div>
           <p class="ogun-yemekler">${esc(r.yemekhane)}${r.porsiyon === 'yarim' ? ' · <strong>yarım porsiyon</strong>' : ''}</p>
           <div class="ogun-alt">
@@ -59,18 +59,17 @@ function ciz() {
   }).join('');
 }
 
-async function iptalTiklandi(olay) {
+async function iptalEt(olay) {
   const dugme = olay.target.closest('button[data-iptal]');
   if (!dugme) return;
-  if (!confirm('Bu rezervasyonu iptal etmek istiyor musun? Ücret bakiyene iade edilir.')) return;
+  if (!confirm('Rezervasyon iptal edilsin mi? Ücret bakiyene geri yüklenir.')) return;
   const id = Number(dugme.dataset.iptal);
   dugme.disabled = true;
   try {
     const sonuc = await api(`/rezervasyonlar/${id}/iptal`, { yontem: 'POST' });
-    bildir(mesaj, `Rezervasyon iptal edildi. ${tl(sonuc.iade)} iade edildi, güncel bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
+    bildir(mesaj, `Rezervasyon iptal edildi. ${tl(sonuc.iade)} iade edildi, bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
     const r = rezervasyonlar.find((x) => x.id === id);
     r.durum = 'iptal';
-    r.iptalEdilebilir = false;
     ciz();
   } catch (hata) {
     bildir(mesaj, hata.message);

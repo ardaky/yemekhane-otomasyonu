@@ -1,11 +1,11 @@
-# Aşama 4 kanıtları · 24.11.2026 10:23
+# Aşama 4 kanıtları · 24.11.2026 15:38
 
 ## 0. Başlangıç: eski uygulama çalışıyor, Redis'te eski yapıda menü kayıtları var
 
 $ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-25:2
 menu:1:2026-11-25:1
 menu:1:2026-11-25:3
-menu:1:2026-11-25:2
 
 $ docker compose exec -T redis redis-cli GET menu:1:2026-11-25:2 | head -c 330; echo
 {"menuId":50,"tarih":"2026-11-25","yemekhane":"Merkez Yemekhane","ogun":"Öğle","rezervasyonSon":"2026-11-25 10:00:00","ogrenciFiyati":40,"personelFiyati":90,"yemekler":[{"id":6,"ad":"Sebze Çorbası","kategori":"Çorba","kalori":120,"vejetaryen":true,"alerjenler":["Kereviz"],"alerjenIdler":[9]},{"id":11,"ad":"Izgara Köfte","k
@@ -94,9 +94,9 @@ $ docker compose up -d --build uygulama 2>&1 | grep -E 'Built|Started'
 ## 5. Redis'te eski yapıdaki menü kayıtları temizleniyor
 
 $ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-25:2
 menu:1:2026-11-25:1
 menu:1:2026-11-25:3
-menu:1:2026-11-25:2
 
 $ docker compose exec -T redis sh -c "redis-cli --scan --pattern 'menu:*' | xargs -r redis-cli DEL"
 3
@@ -105,23 +105,23 @@ $ docker compose exec -T redis redis-cli --scan --pattern 'menu:*' | wc -l
 0
 # oturumlar (oturum:*) silinmedi, kullanıcılar çıkış yapmak zorunda kalmaz:
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg http://localhost:8080/api/ben | head -c 80; echo
-{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"251229002@ktun.edu.tr","rol":
+$ curl -s -b /tmp/cerez-ogrenci.txt http://localhost:8080/api/ben | head -c 80; echo
+{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"mehmet.yildiz@ogr.kampus.edu.
 
 ## 6. Yarım porsiyon
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print({k:m[k] for k in ('ogun','fiyat','yarimPorsiyonVar','yarimFiyat')})"
+$ curl -s -b /tmp/cerez-ogrenci.txt 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print({k:m[k] for k in ('ogun','fiyat','yarimPorsiyonVar','yarimFiyat')})"
 {'ogun': 'Öğle', 'fiyat': 40, 'yarimPorsiyonVar': True, 'yarimFiyat': 24}
 
 $ docker compose exec -T redis redis-cli GET menu:1:2026-11-25:2 | grep -o '"yarimPorsiyonVar":[a-z]*'
 "yarimPorsiyonVar":true
 # öğle, yarım porsiyon (tam fiyat 40 TL, beklenen 24 TL):
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":50,"porsiyon":"yarim"}'
-{"rezervasyonId":368,"ucret":24,"bakiye":331,"porsiyon":"yarim"}
+$ curl -s -b /tmp/cerez-ogrenci.txt -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":50,"porsiyon":"yarim"}'
+{"rezervasyonId":368,"ucret":24,"bakiye":631,"porsiyon":"yarim"}
 # kahvaltı, yarım porsiyon (reddedilmeli):
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":49,"porsiyon":"yarim"}'
+$ curl -s -b /tmp/cerez-ogrenci.txt -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":49,"porsiyon":"yarim"}'
 {"hata":"Bu öğünde yarım porsiyon seçilemez."}
 
 $ docker compose exec -T mysql-primary mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT id, menu_id, durum, porsiyon, ucret FROM rezervasyonlar WHERE kullanici_id=7 AND menu_id=50"
@@ -135,7 +135,7 @@ rezervasyon	-24.00	Rezervasyon (yarım porsiyon)
 ## 7. Alerjen uyarısı
 # Mehmet profilinde Gluten (1) ve Süt (7) seçiyor:
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg -X PUT http://localhost:8080/api/profil/alerjenler -H 'Content-Type: application/json' -d '{"alerjenIdler":[1,7]}'
+$ curl -s -b /tmp/cerez-ogrenci.txt -X PUT http://localhost:8080/api/profil/alerjenler -H 'Content-Type: application/json' -d '{"alerjenIdler":[1,7]}'
 {"secili":[1,7]}
 
 $ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SELECT * FROM kullanici_alerjenleri WHERE kullanici_id = 7'
@@ -143,7 +143,7 @@ kullanici_id	alerjen_id
 7	1
 7	7
 
-$ curl -s -b /tmp/tmp.CbTJKd7fBg 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print('alerjenUyarisi:',m['alerjenUyarisi']);[print(' ',y['ad'],'->',y['uyarilar']) for y in m['yemekler']]"
+$ curl -s -b /tmp/cerez-ogrenci.txt 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print('alerjenUyarisi:',m['alerjenUyarisi']);[print(' ',y['ad'],'->',y['uyarilar']) for y in m['yemekler']]"
 alerjenUyarisi: True
   Sebze Çorbası -> []
   Izgara Köfte -> ['Gluten']

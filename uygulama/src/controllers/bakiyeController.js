@@ -1,4 +1,3 @@
-// Bakiye ekranı ve bakiye yükleme
 const bakiyeVerisi = require('../veri/bakiyeVerisi');
 const { KullaniciHatasi } = require('../hatalar');
 
@@ -8,7 +7,7 @@ async function ozet(req, res) {
 }
 
 // POST /api/bakiye/yukle  { tutar }
-// 10–1000 TL kuralını yordam denetler; burada yalnızca sayı olup olmadığına bakılır.
+// 10-1000 TL sınırını procedure kontrol ediyor
 async function yukle(req, res) {
   const tutar = Number(req.body && req.body.tutar);
   if (!Number.isFinite(tutar)) {

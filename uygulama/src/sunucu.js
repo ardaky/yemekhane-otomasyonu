@@ -1,11 +1,5 @@
-// =====================================================================
-// Yemekhane Otomasyonu · uygulama sunucusu (Express, Web API)
-// Yalnızca JSON döner. Arayüz frontend container'ındaki Apache'den sunulur,
-// Apache /api/ ile başlayan istekleri bu sunucuya (uygulama:8000) iletir.
-//
-// Bir isteğin yolu:
-//   tarayıcı -> Apache -> sunucu.js -> rotalar.js -> controllers/ -> veri/ -> MySQL
-// =====================================================================
+// Express sunucusu. Sadece JSON döner, sayfaları Apache sunuyor.
+// Apache /api/ ile başlayan istekleri buraya (uygulama:8000) yönlendiriyor.
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const rotalar = require('./rotalar');
@@ -14,10 +8,10 @@ const redis = require('./onbellek/redis');
 
 const app = express();
 
-app.use(express.json());   // JSON gövdeyi req.body'ye çevirir
-app.use(cookieParser());   // Çerezleri req.cookies'e çevirir
+app.use(express.json());
+app.use(cookieParser());
 
-// Her isteği günlüğe yaz: yöntem, adres, durum kodu, süre
+// her isteği loga yaz
 app.use((req, res, next) => {
   const baslangic = Date.now();
   res.on('finish', () => {
@@ -27,24 +21,18 @@ app.use((req, res, next) => {
 });
 
 app.use('/api', rotalar);
-
-// Tanımsız /api adresleri
 app.use('/api', (req, res) => res.status(404).json({ hata: 'Böyle bir adres yok.' }));
-
-// Express 5, async fonksiyonlarda fırlatılan hataları buraya iletir
 app.use(hataYakalayici);
 
 const PORT = 8000;
 
-// Önce Redis'e bağlan (oturumlar ve menü önbelleği orada), sonra istek kabul et
+// oturumlar Redis'te olduğu için önce Redis'e bağlanıyoruz
 redis.connect()
   .then(() => {
     console.log('Redis bağlantısı kuruldu');
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Uygulama ${PORT} portunda dinliyor`);
-    });
+    app.listen(PORT, '0.0.0.0', () => console.log(`Uygulama ${PORT} portunda çalışıyor`));
   })
   .catch((err) => {
     console.error('Redis bağlantısı kurulamadı:', err.message);
-    process.exit(1);   // restart: unless-stopped container'ı yeniden başlatır
+    process.exit(1); // docker restart politikası yeniden başlatır
   });
