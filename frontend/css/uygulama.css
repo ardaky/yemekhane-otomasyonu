@@ -1,0 +1,265 @@
+/* =====================================================================
+   Yemekhane · uygulama.css
+   Ekranların ortak bileşenleri. Renkler temel.css'teki değişkenlerden gelir.
+   Mobil önce yazıldı: 400 px genişlikte tek sütun, geniş ekranda ortalı.
+   ===================================================================== */
+
+/* ---------- Sayfa iskeleti ---------- */
+body { padding-bottom: 5rem; }          /* alt sekme çubuğu içeriği örtmesin */
+
+.ust-cubuk {
+  background: var(--yuzey);
+  border-bottom: 1px solid var(--cizgi);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.ust-cubuk .kapsayici {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.25rem;
+  gap: 0.5rem;
+}
+.ust-cubuk h1 { font-size: var(--boyut-buyuk); margin: 0; }
+.ust-cubuk .kim { font-size: var(--boyut-kucuk); color: var(--metin-soluk); }
+
+main.kapsayici { padding-block: 1rem; }
+
+/* ---------- Alt sekme çubuğu ---------- */
+.alt-sekmeler {
+  position: fixed;
+  inset: auto 0 0 0;
+  background: var(--yuzey);
+  border-top: 1px solid var(--cizgi);
+  z-index: 10;
+}
+.alt-sekmeler ul {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0.25rem;
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+.alt-sekmeler a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-height: 48px;
+  justify-content: center;
+  border-radius: var(--kose);
+  color: var(--metin-soluk);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+.alt-sekmeler a .ikon { font-size: 1.15rem; line-height: 1; }
+.alt-sekmeler a[aria-current="page"] {
+  color: var(--ana-koyu);
+  background: var(--ana-acik);
+  font-weight: 600;
+}
+
+/* ---------- Kart ---------- */
+.kart {
+  background: var(--yuzey);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  padding: var(--bosluk);
+  margin-bottom: var(--bosluk);
+}
+.kart h2 { margin-bottom: 0.25rem; }
+.soluk { color: var(--metin-soluk); font-size: var(--boyut-kucuk); }
+
+/* ---------- Form düzeni ---------- */
+.alan { margin-bottom: 0.9rem; }
+.satir-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+.satir-form .tam { grid-column: 1 / -1; }
+.dugme-ikincil {
+  background: var(--yuzey);
+  color: var(--ana-koyu);
+  border: 1px solid var(--ana);
+}
+.dugme-ikincil:hover { background: var(--ana-acik); color: var(--ana-koyu); }
+.dugme-tam { width: 100%; }
+.dugme-kucuk { min-height: 36px; padding: 0.35rem 0.8rem; font-size: var(--boyut-kucuk); }
+
+/* ---------- Etiketler (alerjen, vejetaryen, durum) ---------- */
+.etiketler { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+.etiket {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #F0EFF2;
+  color: var(--metin-soluk);
+}
+.etiket-vejetaryen { background: var(--basari-zemin); color: var(--basari); }
+.etiket-uyari      { background: var(--hata-zemin);   color: var(--hata); }
+.etiket-sari       { background: var(--vurgu-acik);   color: var(--vurgu-koyu); }
+.etiket-mor        { background: var(--ana-acik);     color: var(--ana-koyu); }
+
+/* ---------- Menü listesi ---------- */
+.menu-ozet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.yemek-listesi { list-style: none; margin: 0; padding: 0; }
+.yemek-listesi li {
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--cizgi);
+}
+.yemek-ust { display: flex; justify-content: space-between; gap: 0.5rem; }
+.yemek-ad { font-weight: 600; }
+.yemek-kategori { font-size: 0.75rem; color: var(--metin-soluk); text-transform: uppercase; letter-spacing: 0.03em; }
+.kalori { white-space: nowrap; color: var(--metin-soluk); font-size: var(--boyut-kucuk); }
+
+/* ---------- Haftalık menü: gün kartları ---------- */
+.gun-baslik { margin: 1.25rem 0 0.5rem; font-size: var(--boyut); }
+.ogun-kart {
+  background: var(--yuzey);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  padding: 0.8rem var(--bosluk);
+  margin-bottom: 0.6rem;
+}
+.ogun-ust { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.ogun-ad { font-weight: 700; }
+.ogun-yemekler { font-size: var(--boyut-kucuk); color: var(--metin-soluk); margin: 0.3rem 0 0.6rem; }
+.ogun-alt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.fiyat { font-weight: 700; }
+
+.hafta-gezinme {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- Bakiye ---------- */
+.bakiye-buyuk {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 0.25rem 0;
+}
+.hizli-tutarlar { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.hareketler { list-style: none; margin: 0; padding: 0; }
+.hareketler li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--cizgi);
+}
+.tutar-arti  { color: var(--basari); font-weight: 600; white-space: nowrap; }
+.tutar-eksi  { color: var(--hata);   font-weight: 600; white-space: nowrap; }
+
+/* ---------- Puan (yıldız) ---------- */
+.yildizlar { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 0.15rem; }
+.yildizlar input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.yildizlar label {
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--cizgi);
+  cursor: pointer;
+  margin: 0;
+  padding: 0.1rem;
+}
+/* Seçilen yıldız ve solundakiler sarı olur (row-reverse sayesinde) */
+.yildizlar input:checked ~ label,
+.yildizlar label:hover,
+.yildizlar label:hover ~ label { color: var(--vurgu); }
+.yildizlar input:focus-visible + label { outline: 3px solid var(--ana); border-radius: 4px; }
+
+/* ---------- Yönetici tablosu ---------- */
+.rapor-tablo { width: 100%; border-collapse: collapse; font-size: var(--boyut-kucuk); }
+.rapor-tablo th, .rapor-tablo td { padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--cizgi); text-align: left; vertical-align: middle; }
+.rapor-tablo th { color: var(--metin-soluk); font-weight: 600; white-space: nowrap; }
+.doluluk-cubuk {
+  height: 6px;
+  border-radius: 3px;
+  background: #EFEEF1;
+  overflow: hidden;
+  margin-top: 0.25rem;
+  min-width: 70px;
+}
+.doluluk-cubuk span { display: block; height: 100%; background: var(--ana); }
+
+.yemek-secim {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--cizgi);
+  border-radius: var(--kose);
+  padding: 0.25rem 0.75rem;
+}
+.yemek-secim fieldset { border: 0; padding: 0; margin: 0.5rem 0; }
+.yemek-secim legend { font-weight: 700; font-size: var(--boyut-kucuk); color: var(--metin-soluk); }
+.yemek-secim label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  margin: 0;
+  min-height: 36px;
+}
+.yemek-secim input { width: auto; }
+
+/* ---------- Profil ---------- */
+.bilgi-listesi { margin: 0; }
+.bilgi-listesi div { display: flex; justify-content: space-between; padding: 0.5rem 0; border-top: 1px solid var(--cizgi); }
+.bilgi-listesi dt { color: var(--metin-soluk); }
+.bilgi-listesi dd { margin: 0; font-weight: 600; text-align: right; }
+.baglanti-listesi { list-style: none; margin: 0; padding: 0; }
+.baglanti-listesi a, .baglanti-listesi button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.85rem 0;
+  border: 0;
+  border-top: 1px solid var(--cizgi);
+  background: none;
+  color: var(--metin);
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* ---------- Giriş ekranı ---------- */
+.giris-kutusu {
+  max-width: 400px;
+  margin: 12vh auto 0;
+}
+.giris-kutusu .logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 12px;
+  background: var(--ana);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.bos-durum { text-align: center; color: var(--metin-soluk); padding: 2rem 1rem; }
+.gizli { display: none !important; }
+
+/* Geniş ekranda iki sütun */
+@media (min-width: 720px) {
+  .iki-sutun { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bosluk); align-items: start; }
+}

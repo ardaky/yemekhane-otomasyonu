@@ -7,15 +7,18 @@
    ===================================================================== */
 
 :root {
-  /* Renkler */
-  --zemin:       #EEF2F0;   /* porselen, sayfa zemini       */
+  /* Renkler · nötr zemin, mor yalnızca eylemlerde, sarı vurgu */
+  --zemin:       #F7F7F5;   /* kırık beyaz, sayfa zemini    */
   --yuzey:       #FFFFFF;   /* içerik alanları              */
-  --metin:       #1F2A2E;   /* ana metin                    */
-  --metin-soluk: #5A686D;   /* ikincil metin, açıklamalar   */
-  --cizgi:       #C9D3D0;   /* kenarlıklar                  */
-  --ana:         #1B6B5A;   /* karo yeşili: ana eylem       */
-  --ana-koyu:    #12503F;
-  --vurgu:       #F2B134;   /* safran: fiyat, boş yer       */
+  --metin:       #26232B;   /* ana metin                    */
+  --metin-soluk: #67636D;   /* ikincil metin, açıklamalar   */
+  --cizgi:       #E4E2E7;   /* kenarlıklar                  */
+  --ana:         #7C5CBF;   /* yumuşak mor: düğme, seçili sekme */
+  --ana-koyu:    #5E4499;
+  --ana-acik:    #F1ECFA;   /* seçili sekmenin zemini       */
+  --vurgu:       #F5C84C;   /* yumuşak sarı: fiyat, boş yer */
+  --vurgu-acik:  #FDF4D6;   /* sarı etiket zemini           */
+  --vurgu-koyu:  #6F5200;   /* sarı zeminde yazı            */
   --hata:        #B3261E;
   --hata-zemin:  #FCE8E6;
   --basari:      #2E6B30;

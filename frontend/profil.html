@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profil · Yemekhane</title>
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici">
+    <p id="mesaj" hidden></p>
+    <section class="kart">
+      <h2 id="ad-soyad"></h2>
+      <dl class="bilgi-listesi" id="bilgiler"></dl>
+    </section>
+
+    <section class="kart">
+      <ul class="baglanti-listesi">
+        <li><a href="/degerlendirme.html">Değerlendirme <span aria-hidden="true">›</span></a></li>
+        <li id="yonetici-baglanti" class="gizli"><a href="/yonetici.html">Yönetici paneli <span aria-hidden="true">›</span></a></li>
+        <li><button id="cikis" type="button">Çıkış yap <span aria-hidden="true">›</span></button></li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/js/ortak.js"></script>
+  <script src="/js/profil.js"></script>
+</body>
+</html>
