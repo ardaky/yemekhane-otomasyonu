@@ -143,6 +143,54 @@ main.kapsayici { padding-block: 1rem; }
 }
 .fiyat { font-weight: 700; }
 
+/* Gün kartları: telefonda yana kaydırılır, geniş ekranda ızgara olur */
+.genis.kapsayici { max-width: 1200px; }
+.hafta-izgara {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--bosluk);   /* kart kenar boşluğuyla hizalı dursun */
+  padding-bottom: 0.5rem;
+  margin-inline: calc(-1 * var(--bosluk));
+  padding-inline: var(--bosluk);
+}
+.gun-kart {
+  flex: 0 0 86%;
+  scroll-snap-align: start;
+  background: var(--yuzey);
+  border: 1px solid var(--cizgi);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+}
+.gun-kart > h2 {
+  font-size: var(--boyut);
+  margin: 0 0 0.25rem;
+  display: flex;
+  justify-content: space-between;
+}
+.gun-kart > h2 .bugun-isaret { color: var(--ana); font-size: 0.75rem; }
+.ogun-satir {
+  border-top: 1px solid var(--cizgi);
+  padding: 0.55rem 0;
+}
+.ogun-satir:last-child { padding-bottom: 0; }
+.ogun-satir .ogun-ust { align-items: center; }
+.ogun-satir .ogun-yemekler { margin: 0.15rem 0 0.4rem; font-size: 0.8rem; line-height: 1.35; }
+.ogun-bilgi { font-size: var(--boyut-kucuk); }
+.kaydir-ipucu { font-size: 0.75rem; color: var(--metin-soluk); margin: 0 0 0.4rem; }
+
+@media (min-width: 720px) {
+  .hafta-izgara {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  .kaydir-ipucu { display: none; }
+}
+
 .hafta-gezinme {
   display: flex;
   justify-content: space-between;

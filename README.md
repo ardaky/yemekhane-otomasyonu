@@ -64,14 +64,18 @@ Veritabanı adı: `yemekhane`. Bu şifreler ders ortamı içindir; gerçek bir s
 
 ## Test hesapları
 
-Tüm kullanıcıların şifresi **`Yemek2026!`** (bcrypt, `$2a$`, cost 10).
+Tüm kullanıcıların şifresi **`12345`** (bcrypt, `$2a$`, cost 10).
+
+E-postalar `db/init/03_hesaplar.sql` ile düzenlenir: öğrencilerde öğrenci numarası
+(`251229001@ktun.edu.tr`; 25 giriş yılı, 1229 fakülte/bölüm, 001 sıra), personel ve
+yöneticide `ad.soyad@ktun.edu.tr`.
 
 | E-posta | Rol | Not |
 |---|---|---|
-| leyla.arslan@kampus.edu.tr | yönetici | yönetici paneli için |
-| murat.kaya@kampus.edu.tr | personel | personel fiyatı |
-| ayse.demir@ogr.kampus.edu.tr | öğrenci | bakiyesi 12,50 TL — "Bakiye yetersiz." hatasını denemek için |
-| mehmet.yildiz@ogr.kampus.edu.tr | öğrenci | normal bakiye |
+| leyla.arslan@ktun.edu.tr | yönetici | yönetici paneli için |
+| murat.kaya@ktun.edu.tr | personel | personel fiyatı |
+| 251229001@ktun.edu.tr | öğrenci (Ayşe Demir) | bakiyesi 12,50 TL — "Bakiye yetersiz." hatasını denemek için |
+| 251229002@ktun.edu.tr | öğrenci (Mehmet Yıldız) | normal bakiye |
 
 Diğer kullanıcılar: `SELECT eposta, rol, bakiye FROM kullanicilar;`
 
@@ -184,7 +188,7 @@ komut satırına yazdığınız için çıkan uyarı satırını önemsemeyin.
 docker compose exec -T mysql-primary mysql -uroot -pyemekhane_kok yemekhane < db/init/04_degisiklik.sql
 ```
 
-Replikaya ayrıca uygulamayın; değişiklik replikasyonla geçer. `03` numarası boş bırakılmıştır.
+Replikaya ayrıca uygulamayın; değişiklik replikasyonla geçer. `03_hesaplar.sql` test hesaplarının e-posta ve şifrelerini düzenler.
 
 ## Sıfırlama
 

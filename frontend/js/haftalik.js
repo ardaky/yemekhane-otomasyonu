@@ -5,6 +5,7 @@ const mesaj = document.getElementById('mesaj');
 const aralik = document.getElementById('aralik');
 
 let baslangic;     // gösterilen haftanın ilk günü
+let bugunTarihi;   // "BUGÜN" işareti için
 let menuler = [];  // sunucudan gelen liste; rezervasyondan sonra yerinde güncellenir
 
 async function basla() {
@@ -13,6 +14,7 @@ async function basla() {
   secYemekhane.innerHTML = yemekhaneler
     .map((y) => `<option value="${y.id}">${esc(y.ad)}</option>`).join('');
   baslangic = bugun;
+  bugunTarihi = bugun;
 
   secYemekhane.addEventListener('change', yukle);
   document.getElementById('onceki').addEventListener('click', () => { baslangic = gunEkle(baslangic, -7); yukle(); });
@@ -54,25 +56,31 @@ function ciz() {
     alan.innerHTML = '<div class="kart bos-durum">Bu hafta için menü yok.</div>';
     return;
   }
-  // Menüleri güne göre grupla
+  // Menüleri güne göre grupla: her gün bir kart, öğünler kartın içinde satır
   const gunler = {};
   for (const m of menuler) (gunler[m.tarih] ??= []).push(m);
 
-  alan.innerHTML = Object.entries(gunler).map(([tarih, liste]) => `
-    <h2 class="gun-baslik">${tarihYaz(tarih)}</h2>
-    ${liste.map((m) => `
-      <article class="ogun-kart">
-        <div class="ogun-ust">
-          <span class="ogun-ad">${esc(m.ogun)}</span>
-          <span class="etiket etiket-sari">${m.bosYer} boş yer</span>
-        </div>
-        <p class="ogun-yemekler">${esc(m.yemekler)}</p>
-        <div class="ogun-alt">
-          <span><span class="fiyat">${tl(m.fiyat)}</span>
-            <span class="soluk"> · son ${m.rezervasyonSon.slice(11, 16)}</span></span>
-          ${dugme(m)}
-        </div>
-      </article>`).join('')}`).join('');
+  alan.innerHTML = `
+    <p class="kaydir-ipucu">Günler arasında geçmek için yana kaydır ›</p>
+    <div class="hafta-izgara">
+      ${Object.entries(gunler).map(([tarih, liste]) => `
+        <article class="gun-kart">
+          <h2>${tarihYaz(tarih)} ${tarih === bugunTarihi ? '<span class="bugun-isaret">BUGÜN</span>' : ''}</h2>
+          ${liste.map((m) => `
+            <div class="ogun-satir">
+              <div class="ogun-ust">
+                <span class="ogun-ad">${esc(m.ogun)}</span>
+                <span class="etiket etiket-sari">${m.bosYer} boş</span>
+              </div>
+              <p class="ogun-yemekler soluk">${esc(m.yemekler)}</p>
+              <div class="ogun-alt">
+                <span class="ogun-bilgi"><span class="fiyat">${tl(m.fiyat)}</span>
+                  <span class="soluk"> · son ${m.rezervasyonSon.slice(11, 16)}</span></span>
+                ${dugme(m)}
+              </div>
+            </div>`).join('')}
+        </article>`).join('')}
+    </div>`;
 }
 
 async function rezervasyonTiklandi(olay) {
