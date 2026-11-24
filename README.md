@@ -41,7 +41,7 @@ db/replica-setup.sh         replikayı bir kez kurar ve salt okunur yapar
 apache/                     Apache 2.4 imajı ve yönlendirme ayarı (Web API modunda)
 uygulama/                   Express Web API (rotalar, controller'lar, veri katmanı, Redis)
 frontend/                   HTML/CSS/JS arayüz, veriyi fetch ile /api/'den alır
-rapor/                      rapor (PDF), ekran görüntüleri, komut çıktıları
+rapor/                      rapor (rapor.pdf) ve komut çıktıları (kanitlar/)
 ```
 
 `db/init` içindeki dosyalar **yalnızca veritabanı ilk kez oluşturulurken** çalışır. Sonradan
