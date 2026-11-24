@@ -49,7 +49,9 @@ function ciz(menu) {
       </div>
       <div class="etiketler">
         ${y.vejetaryen ? '<span class="etiket etiket-vejetaryen">Vejetaryen</span>' : ''}
-        ${y.alerjenler.map((a) => `<span class="etiket">${esc(a)}</span>`).join('')}
+        ${y.alerjenler.map((a) => y.uyarilar.includes(a)
+          ? `<span class="etiket etiket-uyari" title="Profilinde bu alerjeni seçtin">⚠ ${esc(a)}</span>`
+          : `<span class="etiket">${esc(a)}</span>`).join('')}
       </div>
     </li>`).join('');
 
@@ -59,9 +61,13 @@ function ciz(menu) {
       <p class="soluk">${tarihYaz(menu.tarih)}</p>
       <div class="menu-ozet">
         <span class="etiket etiket-sari">${tl(menu.fiyat)}</span>
+        ${menu.yarimFiyat !== null ? `<span class="etiket etiket-sari">Yarım porsiyon ${tl(menu.yarimFiyat)}</span>` : ''}
         <span class="etiket etiket-mor">Toplam ${menu.toplamKalori} kcal</span>
         <span class="etiket">Son rezervasyon ${menu.rezervasyonSon.slice(11, 16)}</span>
       </div>
+      ${menu.alerjenUyarisi ? `<p class="bildirim bildirim-hata uyari-kutu" role="alert">
+        ⚠ Bu menüde alerjen olarak seçtiğin maddeleri içeren yemekler var:
+        <strong>${esc(menu.yemekler.filter((y) => y.uyarilar.length).map((y) => y.ad).join(', '))}</strong></p>` : ''}
       <ul class="yemek-listesi">${yemekler}</ul>
     </article>
     <a class="dugme dugme-tam" href="/haftalik.html" style="text-align:center">Rezervasyon için haftalık menüye git</a>`;

@@ -1,9 +1,10 @@
 // Rezervasyon sorguları
 const { yazma, okuma, yordam } = require('./baglanti');
 
-// Para hareketi yapan işlemler stored procedure ile, kaynakta yapılır
-function yap(kullaniciId, menuId) {
-  return yordam('sp_rezervasyon_yap', [kullaniciId, menuId]);
+// Para hareketi yapan işlemler stored procedure ile, kaynakta yapılır.
+// Aşama 4: yordam porsiyonu da alır ('tam' | 'yarim').
+function yap(kullaniciId, menuId, porsiyon) {
+  return yordam('sp_rezervasyon_yap', [kullaniciId, menuId, porsiyon]);
 }
 
 function iptal(kullaniciId, rezervasyonId) {
@@ -13,7 +14,7 @@ function iptal(kullaniciId, rezervasyonId) {
 // Rezervasyonlarım listesi · replikadan
 async function listele(kullaniciId) {
   const [satirlar] = await okuma.query(
-    `SELECT r.id, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
+    `SELECT r.id, r.durum, r.porsiyon, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
             m.id AS menu_id, m.tarih, o.ad AS ogun, yh.ad AS yemekhane,
             TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
             (r.durum = 'aktif' AND NOW() < TIMESTAMP(m.tarih, o.son_saat)) AS iptal_edilebilir,

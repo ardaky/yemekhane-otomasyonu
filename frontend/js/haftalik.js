@@ -37,7 +37,7 @@ async function yukle() {
 // Menünün durumuna göre düğme: rezerve, kullanıldı, süresi doldu, dolu ya da "Rezerve et"
 function dugme(m) {
   if (m.rezervasyonDurum === 'aktif') {
-    return '<span class="etiket etiket-mor">✓ Rezerve edildi</span>';
+    return `<span class="etiket etiket-mor">✓ Rezerve${m.rezervasyonPorsiyon === 'yarim' ? ' · yarım' : ''}</span>`;
   }
   if (m.rezervasyonDurum === 'kullanildi') {
     return '<span class="etiket">Kullanıldı</span>';
@@ -49,6 +49,17 @@ function dugme(m) {
     return '<button class="dugme dugme-kucuk" disabled>Dolu</button>';
   }
   return `<button class="dugme dugme-kucuk" data-menu="${m.menuId}">Rezerve et</button>`;
+}
+
+// Aşama 4 · yarım porsiyon seçimi: yalnızca öğle/akşamda ve rezervasyon yapılabiliyorsa
+function porsiyonSecimi(m) {
+  const yapilabilir = !m.rezervasyonDurum || m.rezervasyonDurum === 'iptal';
+  if (!m.yarimPorsiyonVar || !yapilabilir || m.suresiDoldu || m.bosYer <= 0) return '';
+  return `
+    <div class="porsiyon-secim" role="radiogroup" aria-label="Porsiyon">
+      <label><input type="radio" name="porsiyon-${m.menuId}" value="tam" checked><span>Tam · ${tl(m.fiyat)}</span></label>
+      <label><input type="radio" name="porsiyon-${m.menuId}" value="yarim"><span>Yarım · ${tl(m.yarimFiyat)}</span></label>
+    </div>`;
 }
 
 function ciz() {
@@ -69,10 +80,12 @@ function ciz() {
           ${liste.map((m) => `
             <div class="ogun-satir">
               <div class="ogun-ust">
-                <span class="ogun-ad">${esc(m.ogun)}</span>
+                <span class="ogun-ad">${esc(m.ogun)}
+                  ${m.alerjenUyarisi ? '<span class="etiket etiket-uyari" title="Bu menüde alerjenini içeren yemek var">⚠ alerjen</span>' : ''}</span>
                 <span class="etiket etiket-sari">${m.bosYer} boş</span>
               </div>
               <p class="ogun-yemekler soluk">${esc(m.yemekler)}</p>
+              ${porsiyonSecimi(m)}
               <div class="ogun-alt">
                 <span class="ogun-bilgi"><span class="fiyat">${tl(m.fiyat)}</span>
                   <span class="soluk"> · son ${m.rezervasyonSon.slice(11, 16)}</span></span>
@@ -87,15 +100,19 @@ async function rezervasyonTiklandi(olay) {
   const dugmeEl = olay.target.closest('button[data-menu]');
   if (!dugmeEl) return;
   const menuId = Number(dugmeEl.dataset.menu);
+  const secili = alan.querySelector(`input[name="porsiyon-${menuId}"]:checked`);
+  const porsiyon = secili ? secili.value : 'tam';
   dugmeEl.disabled = true;
   try {
-    const sonuc = await api('/rezervasyonlar', { yontem: 'POST', govde: { menuId } });
+    const sonuc = await api('/rezervasyonlar', { yontem: 'POST', govde: { menuId, porsiyon } });
     // Bakiye, yordamın kaynaktan döndürdüğü değerdir (replikasyon gecikmesinden etkilenmez).
-    bildir(mesaj, `Rezervasyon yapıldı. ${tl(sonuc.ucret)} düşüldü, güncel bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
+    const ne = sonuc.porsiyon === 'yarim' ? 'Yarım porsiyon rezervasyon' : 'Rezervasyon';
+    bildir(mesaj, `${ne} yapıldı. ${tl(sonuc.ucret)} düşüldü, güncel bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
     // Listeyi replikadan yeniden çekmek yerine yerinde güncelle: replika bu
     // rezervasyonu henüz almamış olabilir.
     const m = menuler.find((x) => x.menuId === menuId);
     m.rezervasyonDurum = 'aktif';
+    m.rezervasyonPorsiyon = sonuc.porsiyon;
     m.bosYer -= 1;
     ciz();
   } catch (hata) {

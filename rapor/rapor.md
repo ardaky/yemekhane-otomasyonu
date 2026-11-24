@@ -331,3 +331,144 @@ tutuluyordu ve container yeniden başlayınca kayboluyordu; Redis'e taşındıkt
 yeniden başlatıldığında aynı çerezle istek hâlâ kabul edilir. Redis'in kendisi de AOF ile
 (`--appendonly yes`) veriyi diske yazdığı için Redis yeniden başlasa da oturumlar kalır.
 Çıkışta kayıt silinir ve aynı çerez artık kabul edilmez.
+
+# Aşama 4 · Değişiklik talebi
+
+Yemekhane Müdürlüğü sistem çalışırken iki özellik istedi: öğle ve akşamda %60 fiyatla yarım
+porsiyon (kahvaltıda yok, geçmiş rezervasyonlar tam sayılır) ve kullanıcının profilinde seçtiği
+alerjenleri içeren yemeklerin menüde uyarıyla gösterilmesi. Değişiklik çalışan sisteme aşağıdaki
+sırayla uygulandı. Komut ve çıktıların tamamı `rapor/kanitlar/asama-4.txt` dosyasındadır.
+
+## Migration: `db/init/04_degisiklik.sql`
+
+| Değişiklik | Neden |
+|---|---|
+| `ogunler.yarim_porsiyon_var` (varsayılan 1, kahvaltıda 0) | "Kahvaltıda yarım porsiyon yok" kuralı koda değil veriye yazıldı |
+| `rezervasyonlar.porsiyon ENUM('tam','yarim') DEFAULT 'tam'` | Varsayılan değer sayesinde mevcut bütün rezervasyonlar tam porsiyon olur |
+| `kullanici_alerjenleri` tablosu (kullanıcı–alerjen, çoka çok) | Profilde seçilen alerjenler |
+| `sp_rezervasyon_yap(kullanici_id, menu_id, porsiyon)` | Porsiyonu denetler, yarımda ücreti `ROUND(fiyat * 0.60, 2)` yapar |
+
+Yordamın geri kalanı (kilitler, son saat, kapasite, bakiye kontrolü, hareket kaydı) olduğu gibi
+korundu; değişen satırlar dosyada "YENİ" yorumuyla işaretlidir. Dosya `db/init` klasöründe
+olduğu için depoyu sıfırdan kuran biri değişikliği kendiliğinden alır. Çalışan sistemde ise
+yalnızca kaynağa uygulandı:
+
+```text
+$ docker compose exec -T mysql-primary mysql -uroot -pyemekhane_kok yemekhane < db/init/04_degisiklik.sql
+migration tamam
+```
+
+## Mevcut veri bozulmadı
+
+```text
+$ ... -e "SELECT porsiyon, COUNT(*) AS adet FROM rezervasyonlar GROUP BY porsiyon"
+porsiyon  adet
+tam       367
+
+$ ... -e "SELECT COUNT(*) AS tutarsiz FROM kullanicilar k
+          WHERE k.bakiye <> (SELECT COALESCE(SUM(tutar),0) FROM bakiye_hareketleri h
+                              WHERE h.kullanici_id = k.id)"
+tutarsiz
+0
+```
+
+## Değişiklik replikaya geçti (çıktılar replikadan)
+
+```text
+$ docker compose exec -T mysql-replica mysql ... -e 'SHOW CREATE TABLE rezervasyonlar\G'
+Create Table: CREATE TABLE `rezervasyonlar` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `kullanici_id` int unsigned NOT NULL,
+  `menu_id` int unsigned NOT NULL,
+  `durum` enum('aktif','kullanildi','iptal') ... NOT NULL DEFAULT 'aktif',
+  `porsiyon` enum('tam','yarim') COLLATE utf8mb4_tr_0900_ai_ci NOT NULL DEFAULT 'tam',
+  `ucret` decimal(8,2) NOT NULL,
+  ...
+
+$ docker compose exec -T mysql-replica mysql ... -e 'SHOW CREATE TABLE kullanici_alerjenleri\G'
+Create Table: CREATE TABLE `kullanici_alerjenleri` (
+  `kullanici_id` int unsigned NOT NULL,
+  `alerjen_id` tinyint unsigned NOT NULL,
+  PRIMARY KEY (`kullanici_id`,`alerjen_id`),
+  KEY `fk_ka_alerjen` (`alerjen_id`),
+  CONSTRAINT `fk_ka_alerjen` FOREIGN KEY (`alerjen_id`) REFERENCES `alerjenler` (`id`),
+  CONSTRAINT `fk_ka_kullanici` FOREIGN KEY (`kullanici_id`) REFERENCES `kullanicilar` (`id`) ON DELETE CASCADE
+)
+
+$ docker compose exec -T mysql-replica mysql ... -e 'SELECT id, ad, yarim_porsiyon_var FROM ogunler'
+id  ad        yarim_porsiyon_var
+1   Kahvaltı  0
+2   Öğle      1
+3   Akşam     1
+
+$ ... information_schema.PARAMETERS (replika) ... sp_rezervasyon_yap
+PARAMETER_NAME  DATA_TYPE
+p_kullanici_id  int
+p_menu_id       int
+p_porsiyon      varchar
+```
+
+Migration'dan önce replikadaki `rezervasyonlar` tablosunda `porsiyon` sütunu yoktu; replikaya
+elle hiçbir şey uygulanmadı, değişiklik replikasyonla geçti.
+
+## Redis'te eski yapıdaki menü kayıtlarının temizlenmesi
+
+Yeni uygulama önbelleğe yazdığı menüye `yarimPorsiyonVar` alanını ekler. Migration'dan önce
+yazılmış kayıtlarda bu alan yoktur; temizlenmeseler günün sonuna kadar yarım porsiyon seçeneği
+o menülerde görünmezdi. Uygulama yeni sürümle derlendikten sonra yalnızca `menu:*` kayıtları
+silindi; `oturum:*` kayıtlarına dokunulmadığı için kullanıcıların oturumu düşmedi.
+
+```text
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-25:1
+menu:1:2026-11-25:3
+menu:1:2026-11-25:2
+
+$ docker compose exec -T redis sh -c "redis-cli --scan --pattern 'menu:*' | xargs -r redis-cli DEL"
+3
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*' | wc -l
+0
+
+$ docker compose exec -T redis redis-cli GET menu:1:2026-11-25:2 | grep -o '"yarimPorsiyonVar":[a-z]*'
+"yarimPorsiyonVar":true
+```
+
+## Yarım porsiyon
+
+```text
+$ curl ... -X POST /api/rezervasyonlar -d '{"menuId":50,"porsiyon":"yarim"}'     (öğle, tam fiyat 40 TL)
+{"rezervasyonId":368,"ucret":24,"bakiye":331,"porsiyon":"yarim"}
+
+$ curl ... -X POST /api/rezervasyonlar -d '{"menuId":49,"porsiyon":"yarim"}'     (kahvaltı)
+{"hata":"Bu öğünde yarım porsiyon seçilemez."}
+
+$ ... -e "SELECT id, menu_id, durum, porsiyon, ucret FROM rezervasyonlar WHERE kullanici_id=7 AND menu_id=50"
+id   menu_id  durum  porsiyon  ucret
+368  50       aktif  yarim     24.00
+```
+
+İptalde iade, rezervasyonda saklanan ücret (`ucret`) üzerinden yapıldığı için
+`sp_rezervasyon_iptal` değişmeden yarım porsiyonu da doğru iade eder.
+
+## Alerjen uyarısı
+
+Profilde Gluten ve Süt seçildikten sonra aynı menüde bu alerjenleri içeren yemekler işaretlenir:
+
+```text
+alerjenUyarisi: True
+  Sebze Çorbası -> []
+  Izgara Köfte -> ['Gluten']
+  Fırın Makarna -> ['Gluten', 'Süt']
+  Çoban Salata -> []
+```
+
+Önbellekteki menü herkes için aynı kaldığından kullanıcının alerjenleriyle karşılaştırma
+önbellekten sonra, her istekte controller'da yapılır.
+
+![Profil: alerjen seçimi](ekran/11-profil-alerjen.png){width=32%} ![Menüde alerjen uyarısı](ekran/12-menu-alerjen-uyari.png){width=32%} ![Haftalık: porsiyon seçimi](ekran/13-haftalik-porsiyon.png){width=32%}
+
+![Rezervasyonlarım: yarım porsiyon](ekran/14-rezervasyon-yarim.png){width=32%}
+
+Haftalık menüde öğle ve akşamda "Tam / Yarım" seçimi çıkar, kahvaltıda çıkmaz; kullanıcının
+alerjenini içeren menülerde öğün adının yanında uyarı etiketi görünür.

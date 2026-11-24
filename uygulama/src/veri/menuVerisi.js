@@ -19,12 +19,13 @@ async function ogunler() {
 // Kullanıcıya özel bilgi içermez, bu yüzden önbelleğe alınabilir (Aşama 3).
 async function gununMenusu(yemekhaneId, tarih, ogunId) {
   const [satirlar] = await okuma.query(
-    `SELECT menu_id, tarih, yemekhane, ogun, rezervasyon_son,
-            ogrenci_fiyati, personel_fiyati,
-            yemek_id, yemek, kategori, kalori, vejetaryen, alerjenler, alerjen_idler
-       FROM v_menu_detay
-      WHERE yemekhane_id = ? AND tarih = ? AND ogun_id = ?
-      ORDER BY kategori_sira, yemek`,
+    `SELECT v.menu_id, v.tarih, v.yemekhane, v.ogun, v.rezervasyon_son,
+            v.ogrenci_fiyati, v.personel_fiyati, o.yarim_porsiyon_var,
+            v.yemek_id, v.yemek, v.kategori, v.kalori, v.vejetaryen, v.alerjenler, v.alerjen_idler
+       FROM v_menu_detay v
+       JOIN ogunler o ON o.id = v.ogun_id
+      WHERE v.yemekhane_id = ? AND v.tarih = ? AND v.ogun_id = ?
+      ORDER BY v.kategori_sira, v.yemek`,
     [yemekhaneId, tarih, ogunId]
   );
   if (satirlar.length === 0) return null;
@@ -38,6 +39,7 @@ async function gununMenusu(yemekhaneId, tarih, ogunId) {
     rezervasyonSon: ilk.rezervasyon_son,
     ogrenciFiyati: ilk.ogrenci_fiyati,
     personelFiyati: ilk.personel_fiyati,
+    yarimPorsiyonVar: ilk.yarim_porsiyon_var === 1,   // Aşama 4
     yemekler: satirlar.map((s) => ({
       id: s.yemek_id,
       ad: s.yemek,
@@ -52,13 +54,20 @@ async function gununMenusu(yemekhaneId, tarih, ogunId) {
 
 // Haftalık menü: başlangıç tarihinden itibaren 7 gün.
 // Boş yer, süre bilgisi ve kullanıcının o menüdeki rezervasyon durumu birlikte gelir.
+// Aşama 4: yarım porsiyon izni ve menüde kullanıcının alerjeni olan yemek var mı.
 // Son saat karşılaştırması veritabanında yapılır (NOW() >= rezervasyon_son).
 async function haftalik(yemekhaneId, baslangic, kullaniciId) {
   const [satirlar] = await okuma.query(
     `SELECT d.menu_id, d.tarih, d.ogun_id, d.ogun, d.kapasite, d.bos_yer,
             d.rezervasyon_son, (NOW() >= d.rezervasyon_son) AS suresi_doldu,
             m.ogrenci_fiyati, m.personel_fiyati,
-            r.id AS rezervasyon_id, r.durum AS rezervasyon_durum,
+            r.id AS rezervasyon_id, r.durum AS rezervasyon_durum, r.porsiyon AS rezervasyon_porsiyon,
+            o.yarim_porsiyon_var,
+            EXISTS (SELECT 1
+                      FROM menu_yemekleri my
+                      JOIN yemek_alerjenleri ya    ON ya.yemek_id = my.yemek_id
+                      JOIN kullanici_alerjenleri ka ON ka.alerjen_id = ya.alerjen_id
+                     WHERE my.menu_id = d.menu_id AND ka.kullanici_id = ?) AS alerjen_uyarisi,
             (SELECT GROUP_CONCAT(vd.yemek ORDER BY vd.kategori_sira, vd.yemek SEPARATOR ' · ')
                FROM v_menu_detay vd WHERE vd.menu_id = d.menu_id) AS yemekler
        FROM v_menu_doluluk d
@@ -68,7 +77,7 @@ async function haftalik(yemekhaneId, baslangic, kullaniciId) {
       WHERE d.yemekhane_id = ?
         AND d.tarih BETWEEN ? AND DATE_ADD(?, INTERVAL 6 DAY)
       ORDER BY d.tarih, o.sira`,
-    [kullaniciId, yemekhaneId, baslangic, baslangic]
+    [kullaniciId, kullaniciId, yemekhaneId, baslangic, baslangic]
   );
   return satirlar;
 }

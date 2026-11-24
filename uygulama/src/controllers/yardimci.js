@@ -30,4 +30,10 @@ function rolFiyati(rol, ogrenciFiyati, personelFiyati) {
   return rol === 'ogrenci' ? ogrenciFiyati : personelFiyati;
 }
 
-module.exports = { tamSayi, tarih, bugun, rolFiyati };
+// Aşama 4: yarım porsiyon tam fiyatın %60'ı. Asıl hesap sp_rezervasyon_yap'tadır;
+// bu fonksiyon yalnızca arayüzde gösterilecek fiyat içindir.
+function yarimFiyat(fiyat) {
+  return Math.round(fiyat * 60) / 100;
+}
+
+module.exports = { tamSayi, tarih, bugun, rolFiyati, yarimFiyat };

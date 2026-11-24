@@ -11,6 +11,7 @@ const rezervasyon = require('./controllers/rezervasyonController');
 const bakiye = require('./controllers/bakiyeController');
 const degerlendirme = require('./controllers/degerlendirmeController');
 const yonetici = require('./controllers/yoneticiController');
+const profil = require('./controllers/profilController');
 
 const rota = express.Router();
 
@@ -42,6 +43,10 @@ rota.post('/bakiye/yukle', bakiye.yukle);
 // Değerlendirme
 rota.get('/degerlendirmeler', degerlendirme.liste);
 rota.post('/degerlendirmeler', degerlendirme.ekle);
+
+// Profil · alerjen seçimi (Aşama 4)
+rota.get('/profil/alerjenler', profil.alerjenler);
+rota.put('/profil/alerjenler', profil.alerjenleriKaydet);
 
 // Yönetici paneli
 rota.get('/yonetici/rapor', yoneticiGerekli, yonetici.rapor);

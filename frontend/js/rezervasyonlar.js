@@ -50,7 +50,7 @@ function ciz() {
             <span class="ogun-ad">${tarihYaz(r.tarih)} · ${esc(r.ogun)}</span>
             <span class="etiket ${b.etiket}">${b.ad}</span>
           </div>
-          <p class="ogun-yemekler">${esc(r.yemekhane)}</p>
+          <p class="ogun-yemekler">${esc(r.yemekhane)}${r.porsiyon === 'yarim' ? ' · <strong>yarım porsiyon</strong>' : ''}</p>
           <div class="ogun-alt">
             <span class="fiyat">${tl(r.ucret)}</span>
             ${eylem(r)}

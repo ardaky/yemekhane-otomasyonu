@@ -1,0 +1,151 @@
+# Aşama 4 kanıtları · 24.11.2026 10:23
+
+## 0. Başlangıç: eski uygulama çalışıyor, Redis'te eski yapıda menü kayıtları var
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-25:1
+menu:1:2026-11-25:3
+menu:1:2026-11-25:2
+
+$ docker compose exec -T redis redis-cli GET menu:1:2026-11-25:2 | head -c 330; echo
+{"menuId":50,"tarih":"2026-11-25","yemekhane":"Merkez Yemekhane","ogun":"Öğle","rezervasyonSon":"2026-11-25 10:00:00","ogrenciFiyati":40,"personelFiyati":90,"yemekler":[{"id":6,"ad":"Sebze Çorbası","kategori":"Çorba","kalori":120,"vejetaryen":true,"alerjenler":["Kereviz"],"alerjenIdler":[9]},{"id":11,"ad":"Izgara Köfte","k
+# eski kayıtta yarimPorsiyonVar alanı yok
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SHOW CREATE TABLE rezervasyonlar\G' | grep -E 'durum|porsiyon|ucret'
+  `durum` enum('aktif','kullanildi','iptal') CHARACTER SET utf8mb4 COLLATE utf8mb4_tr_0900_ai_ci NOT NULL DEFAULT 'aktif',
+  `ucret` decimal(8,2) NOT NULL,
+  KEY `ix_rezervasyon_menu_durum` (`menu_id`,`durum`),
+
+## 1. Migration kaynakta çalıştırılıyor (tek dosya: db/init/04_degisiklik.sql)
+
+$ docker compose exec -T mysql-primary mysql -uroot -pyemekhane_kok yemekhane < db/init/04_degisiklik.sql && echo 'migration tamam'
+migration tamam
+
+## 2. Mevcut veri bozulmadı
+
+$ docker compose exec -T mysql-primary mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT porsiyon, COUNT(*) AS adet FROM rezervasyonlar GROUP BY porsiyon"
+porsiyon	adet
+tam	367
+# bakiye = SUM(hareketler) kuralı: tutarsız kullanıcı sayısı 0 olmalı
+
+$ docker compose exec -T mysql-primary mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT COUNT(*) AS tutarsiz FROM kullanicilar k WHERE k.bakiye <> (SELECT COALESCE(SUM(tutar),0) FROM bakiye_hareketleri h WHERE h.kullanici_id = k.id)"
+tutarsiz
+0
+
+## 3. Değişiklik replikaya da geçti (çıktılar REPLİKADAN)
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SHOW CREATE TABLE rezervasyonlar\G'
+*************************** 1. row ***************************
+       Table: rezervasyonlar
+Create Table: CREATE TABLE `rezervasyonlar` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `kullanici_id` int unsigned NOT NULL,
+  `menu_id` int unsigned NOT NULL,
+  `durum` enum('aktif','kullanildi','iptal') CHARACTER SET utf8mb4 COLLATE utf8mb4_tr_0900_ai_ci NOT NULL DEFAULT 'aktif',
+  `porsiyon` enum('tam','yarim') COLLATE utf8mb4_tr_0900_ai_ci NOT NULL DEFAULT 'tam',
+  `ucret` decimal(8,2) NOT NULL,
+  `olusturma` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `kullanma_zamani` datetime DEFAULT NULL,
+  `iptal_zamani` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_rezervasyon` (`kullanici_id`,`menu_id`),
+  KEY `ix_rezervasyon_menu_durum` (`menu_id`,`durum`),
+  CONSTRAINT `fk_rez_kullanici` FOREIGN KEY (`kullanici_id`) REFERENCES `kullanicilar` (`id`),
+  CONSTRAINT `fk_rez_menu` FOREIGN KEY (`menu_id`) REFERENCES `menuler` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=368 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_tr_0900_ai_ci
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SHOW CREATE TABLE kullanici_alerjenleri\G'
+*************************** 1. row ***************************
+       Table: kullanici_alerjenleri
+Create Table: CREATE TABLE `kullanici_alerjenleri` (
+  `kullanici_id` int unsigned NOT NULL,
+  `alerjen_id` tinyint unsigned NOT NULL,
+  PRIMARY KEY (`kullanici_id`,`alerjen_id`),
+  KEY `fk_ka_alerjen` (`alerjen_id`),
+  CONSTRAINT `fk_ka_alerjen` FOREIGN KEY (`alerjen_id`) REFERENCES `alerjenler` (`id`),
+  CONSTRAINT `fk_ka_kullanici` FOREIGN KEY (`kullanici_id`) REFERENCES `kullanicilar` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_tr_0900_ai_ci
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SELECT id, ad, yarim_porsiyon_var FROM ogunler'
+id	ad	yarim_porsiyon_var
+1	Kahvaltı	0
+2	Öğle	1
+3	Akşam	1
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT PARAMETER_NAME, DATA_TYPE FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='yemekhane' AND SPECIFIC_NAME='sp_rezervasyon_yap' ORDER BY ORDINAL_POSITION"
+PARAMETER_NAME	DATA_TYPE
+p_kullanici_id	int
+p_menu_id	int
+p_porsiyon	varchar
+
+$ docker compose exec -T mysql-replica mysql -uroot -pyemekhane_kok -e 'SHOW REPLICA STATUS\G' | grep -E 'Running:|Last_SQL_Error:'
+           Replica_IO_Running: Yes
+          Replica_SQL_Running: Yes
+               Last_SQL_Error: 
+
+## 4. Uygulama yeni sürümle yeniden derleniyor
+
+$ docker compose up -d --build uygulama 2>&1 | grep -E 'Built|Started'
+ Image yemekhane-uygulama Built 
+ Image yemekhane-uygulama Built 
+ Container yemekhane-replica-setup-1 Started 
+ Container yemekhane-uygulama-1 Started 
+
+## 5. Redis'te eski yapıdaki menü kayıtları temizleniyor
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-25:1
+menu:1:2026-11-25:3
+menu:1:2026-11-25:2
+
+$ docker compose exec -T redis sh -c "redis-cli --scan --pattern 'menu:*' | xargs -r redis-cli DEL"
+3
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*' | wc -l
+0
+# oturumlar (oturum:*) silinmedi, kullanıcılar çıkış yapmak zorunda kalmaz:
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg http://localhost:8080/api/ben | head -c 80; echo
+{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"251229002@ktun.edu.tr","rol":
+
+## 6. Yarım porsiyon
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print({k:m[k] for k in ('ogun','fiyat','yarimPorsiyonVar','yarimFiyat')})"
+{'ogun': 'Öğle', 'fiyat': 40, 'yarimPorsiyonVar': True, 'yarimFiyat': 24}
+
+$ docker compose exec -T redis redis-cli GET menu:1:2026-11-25:2 | grep -o '"yarimPorsiyonVar":[a-z]*'
+"yarimPorsiyonVar":true
+# öğle, yarım porsiyon (tam fiyat 40 TL, beklenen 24 TL):
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":50,"porsiyon":"yarim"}'
+{"rezervasyonId":368,"ucret":24,"bakiye":331,"porsiyon":"yarim"}
+# kahvaltı, yarım porsiyon (reddedilmeli):
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":49,"porsiyon":"yarim"}'
+{"hata":"Bu öğünde yarım porsiyon seçilemez."}
+
+$ docker compose exec -T mysql-primary mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT id, menu_id, durum, porsiyon, ucret FROM rezervasyonlar WHERE kullanici_id=7 AND menu_id=50"
+id	menu_id	durum	porsiyon	ucret
+368	50	aktif	yarim	24.00
+
+$ docker compose exec -T mysql-primary mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e "SELECT tur, tutar, aciklama FROM bakiye_hareketleri WHERE kullanici_id=7 ORDER BY id DESC LIMIT 1"
+tur	tutar	aciklama
+rezervasyon	-24.00	Rezervasyon (yarım porsiyon)
+
+## 7. Alerjen uyarısı
+# Mehmet profilinde Gluten (1) ve Süt (7) seçiyor:
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg -X PUT http://localhost:8080/api/profil/alerjenler -H 'Content-Type: application/json' -d '{"alerjenIdler":[1,7]}'
+{"secili":[1,7]}
+
+$ docker compose exec -T mysql-replica mysql --default-character-set=utf8mb4 -uroot -pyemekhane_kok yemekhane -e 'SELECT * FROM kullanici_alerjenleri WHERE kullanici_id = 7'
+kullanici_id	alerjen_id
+7	1
+7	7
+
+$ curl -s -b /tmp/tmp.CbTJKd7fBg 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print('alerjenUyarisi:',m['alerjenUyarisi']);[print(' ',y['ad'],'->',y['uyarilar']) for y in m['yemekler']]"
+alerjenUyarisi: True
+  Sebze Çorbası -> []
+  Izgara Köfte -> ['Gluten']
+  Fırın Makarna -> ['Gluten', 'Süt']
+  Çoban Salata -> []
