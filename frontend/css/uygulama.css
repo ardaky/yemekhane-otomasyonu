@@ -311,3 +311,135 @@ main.kapsayici { padding-block: 1rem; }
 @media (min-width: 720px) {
   .iki-sutun { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bosluk); align-items: start; }
 }
+
+/* =====================================================================
+   Akışkan görünüm: yumuşak köşeler, hafif gölgeler, geçişler ve
+   giriş animasyonları. Hareket azaltma tercihi olan kullanıcılarda
+   temel.css'teki prefers-reduced-motion kuralı animasyonları kapatır.
+   ===================================================================== */
+:root {
+  --golge-1: 0 1px 2px rgba(38, 35, 43, 0.04), 0 2px 8px rgba(38, 35, 43, 0.05);
+  --golge-2: 0 4px 10px rgba(38, 35, 43, 0.06), 0 12px 28px rgba(124, 92, 191, 0.10);
+  --gecis: 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* Kartlar: kenarlık yerine gölge, üstüne gelince hafif yükselme */
+.kart, .ogun-kart, .gun-kart {
+  border-color: transparent;
+  border-radius: 16px;
+  box-shadow: var(--golge-1);
+  transition: transform var(--gecis), box-shadow var(--gecis);
+}
+@media (hover: hover) {
+  .ogun-kart:hover, .gun-kart:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--golge-2);
+  }
+}
+
+/* Düğmeler: hap biçimi, hafif degrade, basınca içe çökme */
+.dugme {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8A6BD0, var(--ana));
+  box-shadow: 0 2px 6px rgba(124, 92, 191, 0.25);
+  transition: transform var(--gecis), box-shadow var(--gecis), filter var(--gecis);
+}
+.dugme:hover { background: linear-gradient(135deg, #7E5FC6, var(--ana-koyu)); box-shadow: 0 4px 12px rgba(124, 92, 191, 0.32); }
+.dugme:active:not(:disabled) { transform: scale(0.96); }
+.dugme:disabled, .dugme[aria-disabled="true"] { background: #ECEAF0; box-shadow: none; }
+.dugme-ikincil, .dugme-ikincil:hover {
+  background: var(--yuzey);
+  box-shadow: none;
+  border: 1px solid #D9CFF0;
+}
+.dugme-ikincil:hover { background: var(--ana-acik); }
+
+/* Haftalık menüdeki küçük düğmeler */
+.ogun-satir .dugme, .ogun-kart .dugme-kucuk {
+  min-height: 32px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8rem;
+}
+
+/* Form alanları: odakta mor halka */
+input, select, textarea {
+  border-radius: 10px;
+  transition: border-color var(--gecis), box-shadow var(--gecis);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--ana);
+  box-shadow: 0 0 0 4px rgba(124, 92, 191, 0.15);
+}
+
+/* Üst çubuk: yarı saydam, arkası bulanık */
+.ust-cubuk {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: rgba(228, 226, 231, 0.7);
+}
+.ust-cubuk h1 {
+  background: linear-gradient(90deg, var(--metin), var(--ana-koyu));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Alt sekmeler: yarı saydam, seçili sekmede simge hafifçe zıplar */
+.alt-sekmeler {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 -4px 20px rgba(38, 35, 43, 0.05);
+  border-top-color: transparent;
+}
+.alt-sekmeler a { transition: background var(--gecis), color var(--gecis); border-radius: 14px; }
+.alt-sekmeler a .ikon { transition: transform var(--gecis); }
+.alt-sekmeler a:hover .ikon { transform: translateY(-2px); }
+.alt-sekmeler a[aria-current="page"] .ikon { animation: zipla 420ms ease; }
+
+/* Etiketler */
+.etiket { transition: transform var(--gecis); }
+.etiket-mor { animation: belir-pop 300ms ease both; }
+
+/* Bildirim kutusu yukarıdan kayarak gelir */
+.bildirim { border-radius: 12px; animation: kay-gel 260ms ease both; }
+
+/* Yıldızlar üstüne gelince büyür */
+.yildizlar label { transition: color var(--gecis), transform var(--gecis); }
+.yildizlar label:hover { transform: scale(1.15); }
+
+/* Doluluk çubuğu dolarak gelir */
+.doluluk-cubuk span { animation: dol 700ms ease both; transform-origin: left; }
+
+/* Giriş ekranı: yumuşak mor-sarı degrade zemin */
+body:has(.giris-kutusu) {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(124, 92, 191, 0.14), transparent 45%),
+    radial-gradient(circle at 85% 90%, rgba(245, 200, 76, 0.18), transparent 45%),
+    var(--zemin);
+  min-height: 100vh;
+}
+.giris-kutusu { animation: yuksel 450ms cubic-bezier(0.2, 0.7, 0.3, 1) both; box-shadow: var(--golge-2); }
+.giris-kutusu .logo { background: linear-gradient(135deg, var(--ana), #B48BE0); border-radius: 16px; }
+
+/* ---------- Giriş animasyonları ---------- */
+main.kapsayici > * { animation: yuksel 360ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.hafta-izgara > *, #liste > .ogun-kart, #bekleyenler > *, #verilenler > *, .yemek-listesi > li {
+  animation: yuksel 380ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+/* Kartlar sırayla belirsin */
+.hafta-izgara > :nth-child(2), .yemek-listesi > :nth-child(2) { animation-delay: 40ms; }
+.hafta-izgara > :nth-child(3), .yemek-listesi > :nth-child(3) { animation-delay: 80ms; }
+.hafta-izgara > :nth-child(4), .yemek-listesi > :nth-child(4) { animation-delay: 120ms; }
+.hafta-izgara > :nth-child(5), .yemek-listesi > :nth-child(5) { animation-delay: 160ms; }
+.hafta-izgara > :nth-child(6), .yemek-listesi > :nth-child(6) { animation-delay: 200ms; }
+.hafta-izgara > :nth-child(7), .yemek-listesi > :nth-child(7) { animation-delay: 240ms; }
+.yemek-listesi > :nth-child(n+8) { animation-delay: 280ms; }
+
+@keyframes yuksel   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes kay-gel  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes belir-pop { 0% { transform: scale(0.85); opacity: 0; } 70% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes zipla    { 0%, 100% { transform: none; } 40% { transform: translateY(-4px); } }
+@keyframes dol      { from { transform: scaleX(0); } to { transform: scaleX(1); } }
