@@ -20,6 +20,7 @@ async function api(yol, { yontem = 'GET', govde } = {}) {
   // oturum düşmüşse giriş sayfasına dön (giriş sayfasının kendisi hariç)
   if (yanit.status === 401 && location.pathname !== '/' && location.pathname !== '/index.html') {
     location.href = '/';
+    return new Promise(() => {}); // sayfa değişene kadar bekle, hata kutusu çıkmasın
   }
   if (!yanit.ok) {
     throw new Error(veri.hata || 'Bir hata oluştu.');

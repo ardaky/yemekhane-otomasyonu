@@ -9,9 +9,12 @@ async function ozet(req, res) {
 // POST /api/bakiye/yukle  { tutar }
 // 10-1000 TL sınırını procedure kontrol ediyor
 async function yukle(req, res) {
-  const tutar = Number(req.body && req.body.tutar);
-  if (!Number.isFinite(tutar)) {
-    throw new KullaniciHatasi('Geçerli bir tutar girin.');
+  const girilen = req.body && req.body.tutar;
+  const tutar = typeof girilen === 'number' || (typeof girilen === 'string' && /^\d+([.,]\d{1,2})?$/.test(girilen.trim()))
+    ? Number(String(girilen).replace(',', '.'))
+    : NaN;
+  if (!Number.isFinite(tutar) || Math.round(tutar * 100) !== tutar * 100) {
+    throw new KullaniciHatasi('Geçerli bir tutar girin (en fazla iki ondalık).');
   }
   const sonuc = await bakiyeVerisi.yukle(req.kullanici.kullaniciId, tutar);
   res.status(201).json({ hareketId: sonuc.hareket_id, bakiye: sonuc.bakiye });

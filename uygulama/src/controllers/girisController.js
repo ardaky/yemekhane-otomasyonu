@@ -21,6 +21,9 @@ async function giris(req, res) {
     throw new KullaniciHatasi('Hesabınız pasif durumda.', 403);
   }
 
+  // bu tarayıcıda önceden açılmış bir oturum varsa onu kapat
+  if (req.cookies[CEREZ]) await depo.sil(req.cookies[CEREZ]);
+
   const bilgi = { kullaniciId: kullanici.id, rol: kullanici.rol, ad: kullanici.ad };
   const token = await depo.olustur(bilgi);
   // httpOnly: sayfadaki JavaScript çereze erişemiyor

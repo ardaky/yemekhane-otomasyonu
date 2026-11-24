@@ -13,8 +13,14 @@ döndürüyor. Arayüz düz HTML, CSS ve JavaScript; `frontend` container'ındak
 veriyi `fetch` ile `/api/...` adreslerinden alıyor. Apache `-D WEBAPI` modunda çalışıyor,
 `/api/` ile başlayan istekleri `uygulama` servisine yönlendiriyor.
 
-Depo: <https://github.com/ardaky/yemekhane-otomasyonu>. Bütün komut çıktıları
-`rapor/kanitlar/` klasöründe.
+Depo: <https://github.com/ardaky/yemekhane-otomasyonu>. Aşama 1, 3 ve 4'ün komut
+çıktılarının tamamı `rapor/kanitlar/` klasöründe; raporda bazılarını kısalttım.
+
+Kanıtları teslimden önce sistemi sıfırdan kurarak tek seferde topladım: önce Aşama 1,
+sonra Aşama 4 (migration uygulanmamış halden başlayarak), en son da Aşama 3'ü uygulamanın son
+haliyle. Bu yüzden Aşama 1'deki `ps` çıktısında `uygulama` servisi de görünüyor. Ekran
+görüntüleri de sistemin son halinden; Aşama 2 ekranlarında Aşama 4'te eklenen porsiyon ve
+alerjen bilgileri de var.
 
 # Aşama 1 · Altyapı
 
@@ -72,6 +78,13 @@ $ docker compose exec -T mysql-replica mysql -uyemekhane_app -pUyg_2026 yemekhan
 7	655.00
 ```
 
+Redis de çalışıyor:
+
+```text
+$ docker compose exec -T redis redis-cli ping
+PONG
+```
+
 # Aşama 2 · Uygulama
 
 ## Klasör yapısı
@@ -85,7 +98,9 @@ Kod `uygulama/src/` altında:
 
 Para hareketi olan işlemler için hocanın verdiği procedure'leri çağırdım: `sp_rezervasyon_yap`,
 `sp_rezervasyon_iptal`, `sp_bakiye_yukle`. Menü ekranları `v_menu_detay` ve `v_menu_doluluk`,
-yönetici raporu da `v_menu_puan` view'ını kullanıyor.
+yönetici raporu da `v_menu_puan` view'ını kullanıyor. Turnike geçişi için bir ekran istenmediğinden
+`sp_turnike_gecis`'i uygulamada kullanmadım; değerlendirme ekranı için gereken "kullanıldı"
+rezervasyonlar örnek veride zaten var.
 
 ## Bir isteğin yolu: rezervasyon
 
@@ -133,7 +148,8 @@ async function yordam(ad, parametreler) {
 }
 ```
 
-Cevap `{"rezervasyonId":368,"ucret":24,"bakiye":631,"porsiyon":"yarim"}` gibi bir JSON.
+Cevap `{"rezervasyonId":368,"ucret":24,"bakiye":631,"porsiyon":"yarim"}` gibi bir JSON
+(kod son haliyle, `porsiyon` Aşama 4'te eklendi).
 Procedure hata verirse (örneğin bakiye yetmiyorsa) MySQL `SQLSTATE 45000` ile Türkçe bir mesaj
 döndürüyor. `src/hatalar.js` bu mesajı değiştirmeden `{"hata": "Bakiye yetersiz."}` olarak
 gönderiyor, arayüz de kırmızı kutuda gösteriyor. Diğer veritabanı hataları kullanıcıya ham
@@ -145,10 +161,15 @@ Rezervasyon, iptal, bakiye yükleme, değerlendirme, alerjen kaydı ve menü ekl
 kaynağa gidiyor. Haftalık menü, rezervasyonlarım, bakiye geçmişi, değerlendirme listeleri ve
 yönetici raporu replikadan okunuyor.
 
-Birkaç okumayı bilerek kaynaktan yaptım: girişte kullanıcıyı bulma, değerlendirme kaydetmeden
-önceki "bu menü yendi mi" kontrolü, yöneticinin düzenleme formu ve günün menüsünün önbelleğe
-yazılacak hali (Aşama 3'te açıkladım). Bunların hepsi bir yazmanın hemen arkasından gelebilen
-okumalar.
+Şu okumaları bilerek kaynaktan yaptım, çünkü bir yazmanın hemen arkasından geliyorlar ve
+replika geride kalırsa yanlış sonuç verirler: girişte kullanıcıyı bulma, değerlendirme
+kaydetmeden önceki "bu menü yendi mi" kontrolü, yöneticinin düzenleme formu, kullanıcının
+kendi alerjen seçimi ve günün menüsünün önbelleğe yazılacak hali (Aşama 3'te açıkladım).
+Bakiye sayfası ve rezervasyon listesi ise replikadan geliyor; replika çok geride kalırsa
+bunlarda birkaç saniye eski veri görünebilir.
+
+Replika tamamen kapanırsa (container durursa) okumalar kaynağa yönlendiriliyor, böylece
+uygulama çalışmaya devam ediyor (`src/veri/baglanti.js`).
 
 ## Rezervasyondan sonra bakiye neden kaynaktan okunuyor
 
@@ -205,9 +226,10 @@ $ curl -s -b /tmp/cerez-yonetici.txt -X PUT http://localhost:8080/api/yonetici/m
 {"menuId":45}
 $ docker compose exec -T redis redis-cli EXISTS menu:1:2026-11-24:3
 0
-$ curl -s -b /tmp/cerez-ogrenci.txt 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3'
+$ curl -s -b /tmp/cerez-ogrenci.txt 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3' | python3 -c "import sys,json;print([y['ad'] for y in json.load(sys.stdin)['menu']['yemekler']])"
 ['Yayla Çorbası', 'Tavuk Sote', 'Fırın Makarna', 'Aşure', 'Ayran']
 
+$ docker compose logs --no-log-prefix uygulama | grep 'menu:1:2026-11-24:3' | tail -3
 [önbellek] menu:1:2026-11-24:3 Redis'ten geldi
 [önbellek] menu:1:2026-11-24:3 silindi
 [önbellek] menu:1:2026-11-24:3 veritabanından okundu, Redis'e yazıldı
@@ -217,6 +239,11 @@ Burada bir sorun vardı: önbellek boşken menüyü replikadan okusaydım ve rep
 henüz almamış olsaydı, eski menü tekrar önbelleğe yazılıp gün sonuna kadar kalabilirdi. Bu
 yüzden önbelleğe yazılacak menüyü kaynaktan okuyorum. Bu okuma her menü için günde bir kez
 oluyor, sonraki istekler zaten Redis'ten geliyor.
+
+Arayüzde de aynısı: yarının öğle menüsüne Ayran ekledikten sonra günün menüsü ekranı yeni
+yemeği gösteriyor.
+
+![](ekran/09-menu-guncellendi.png){width=23%}
 
 Oturum:
 
@@ -317,10 +344,12 @@ Ardından menüyü tekrar isteyince yeni yapıda kaydedildi (`"yarimPorsiyonVar"
 
 ## Yarım porsiyon ve alerjen uyarısı
 
+Menü 50 yarının öğle yemeği (tam fiyat 40 TL), menü 49 aynı günün kahvaltısı:
+
 ```text
-$ curl ... -X POST /api/rezervasyonlar -d '{"menuId":50,"porsiyon":"yarim"}'      (öğle, tam fiyat 40 TL)
+$ curl -s -b /tmp/cerez-ogrenci.txt -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":50,"porsiyon":"yarim"}'
 {"rezervasyonId":368,"ucret":24,"bakiye":631,"porsiyon":"yarim"}
-$ curl ... -X POST /api/rezervasyonlar -d '{"menuId":49,"porsiyon":"yarim"}'      (kahvaltı)
+$ curl -s -b /tmp/cerez-ogrenci.txt -X POST http://localhost:8080/api/rezervasyonlar -H 'Content-Type: application/json' -d '{"menuId":49,"porsiyon":"yarim"}'
 {"hata":"Bu öğünde yarım porsiyon seçilemez."}
 ```
 
@@ -330,6 +359,8 @@ değiştirmem gerekmedi.
 Profilde Gluten ve Süt seçince aynı menüde şu yemekler işaretleniyor:
 
 ```text
+$ curl -s -b /tmp/cerez-ogrenci.txt 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-25&ogun=2' | python3 -c "import sys,json;m=json.load(sys.stdin)['menu'];print('alerjenUyarisi:',m['alerjenUyarisi']);[print(' ',y['ad'],'->',y['uyarilar']) for y in m['yemekler']]"
+alerjenUyarisi: True
   Sebze Çorbası -> []
   Izgara Köfte -> ['Gluten']
   Fırın Makarna -> ['Gluten', 'Süt']

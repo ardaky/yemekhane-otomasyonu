@@ -5,8 +5,10 @@ async function tumu() {
   return satirlar;
 }
 
+// Kullanıcının kendi seçimi. Kaydettikten hemen sonra okunabildiği için
+// (profil sayfası, menüdeki uyarı) kaynaktan okuyoruz.
 async function kullanicininkiler(kullaniciId) {
-  const [satirlar] = await okuma.query(
+  const [satirlar] = await yazma.query(
     'SELECT alerjen_id FROM kullanici_alerjenleri WHERE kullanici_id = ?',
     [kullaniciId]
   );
@@ -14,9 +16,9 @@ async function kullanicininkiler(kullaniciId) {
 }
 
 // Menüdeki yemeklerle karşılaştırmak için alerjen adları lazım
-// (v_menu_detay alerjenleri ad olarak veriyor).
+// (v_menu_detay alerjenleri ad olarak veriyor). Bu da kaynaktan.
 async function kullanicininAdlari(kullaniciId) {
-  const [satirlar] = await okuma.query(
+  const [satirlar] = await yazma.query(
     `SELECT a.ad FROM kullanici_alerjenleri ka
        JOIN alerjenler a ON a.id = ka.alerjen_id
       WHERE ka.kullanici_id = ?`,

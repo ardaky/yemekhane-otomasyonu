@@ -112,7 +112,7 @@ Para hareketi yapan işlemleri veri katmanında SQL ile yeniden yazmayın; bu yo
 
 | Yordam | Parametreler | Başarıda dönen tek satır |
 |---|---|---|
-| `sp_rezervasyon_yap` | `kullanici_id, menu_id` | `rezervasyon_id, ucret, bakiye` |
+| `sp_rezervasyon_yap` | `kullanici_id, menu_id, porsiyon` (porsiyon Aşama 4'te eklendi: `'tam'`/`'yarim'`) | `rezervasyon_id, ucret, bakiye, porsiyon` |
 | `sp_rezervasyon_iptal` | `kullanici_id, rezervasyon_id` | `rezervasyon_id, iade, bakiye` |
 | `sp_bakiye_yukle` | `kullanici_id, tutar` (10–1000 TL) | `hareket_id, bakiye` |
 | `sp_turnike_gecis` | `kullanici_id, yemekhane_id, zaman` | `rezervasyon_id, menu_id, ogun` |

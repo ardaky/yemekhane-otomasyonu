@@ -3,10 +3,13 @@ const menuOnbellegi = require('../onbellek/menuOnbellegi');
 const { KullaniciHatasi } = require('../hatalar');
 const { tamSayi, tarih, bugun } = require('./yardimci');
 
-// GET /api/yonetici/rapor?baslangic=...&bitis=...
+// GET /api/yonetici/rapor?baslangic=...&bitis=...  (en fazla 62 gün)
 async function rapor(req, res) {
   const baslangic = req.query.baslangic ? tarih(req.query.baslangic) : bugun();
   const bitis = req.query.bitis ? tarih(req.query.bitis) : baslangic;
+  const gunFarki = (new Date(bitis) - new Date(baslangic)) / 86400000;
+  if (gunFarki < 0) throw new KullaniciHatasi('Bitiş tarihi başlangıçtan önce olamaz.');
+  if (gunFarki > 62) throw new KullaniciHatasi('En fazla iki aylık rapor alınabilir.');
   res.json(await yoneticiVerisi.menuRaporu(baslangic, bitis));
 }
 
@@ -22,12 +25,14 @@ async function menuGetir(req, res) {
   res.json(menu);
 }
 
+// kuruşa yuvarlanmış hali 0,50 ile 10.000 TL arasında olmalı
 function fiyat(deger, ad) {
-  const sayi = Number(deger);
-  if (deger === '' || deger === null || deger === undefined || !(sayi > 0) || sayi > 10000) {
-    throw new KullaniciHatasi(`${ad} 0 ile 10.000 TL arasında olmalıdır.`);
+  const sayi = (typeof deger === 'number' || typeof deger === 'string') && deger !== '' ? Number(deger) : NaN;
+  const yuvarlak = Math.round(sayi * 100) / 100;
+  if (!(yuvarlak >= 0.5 && yuvarlak <= 10000)) {
+    throw new KullaniciHatasi(`${ad} 0,50 ile 10.000 TL arasında olmalıdır.`);
   }
-  return sayi;
+  return yuvarlak;
 }
 
 // fiyatlar ve yemek listesi
@@ -68,7 +73,12 @@ async function olustur(req, res) {
 // Menü değişince önbellekteki eski hali siliniyor, sonraki istek yenisini okuyor.
 async function guncelle(req, res) {
   const menuId = tamSayi(req.params.id, 'menü');
-  const m = await yoneticiVerisi.menuGuncelle(menuId, menuBilgisi(req.body || {}));
+  const bilgi = menuBilgisi(req.body || {});
+  const eski = await yoneticiVerisi.menuGetir(menuId);
+  if (!eski) throw new KullaniciHatasi('Menü bulunamadı.', 404);
+  // geçmiş menüler yenmiş ve puanlanmış olabilir, içerikleri değişmesin
+  if (eski.tarih < bugun()) throw new KullaniciHatasi('Geçmiş menüler değiştirilemez.');
+  const m = await yoneticiVerisi.menuGuncelle(menuId, bilgi);
   if (!m) throw new KullaniciHatasi('Menü bulunamadı.', 404);
   await menuOnbellegi.sil(m.yemekhane_id, m.tarih, m.ogun_id);
   res.json({ menuId });

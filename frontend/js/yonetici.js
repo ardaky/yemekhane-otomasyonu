@@ -58,7 +58,8 @@ async function raporYukle() {
             <div class="doluluk-cubuk"><span style="width:${Math.min(100, s.doluluk_yuzde)}%"></span></div></td>
           <td>${s.ortalama_puan === null ? '<span class="soluk">–</span>'
               : `★ ${Number(s.ortalama_puan).toFixed(1)}<br><span class="soluk">${s.oy_sayisi} oy</span>`}</td>
-          <td><button class="dugme dugme-ikincil dugme-kucuk" data-duzenle="${s.menu_id}" title="Düzenle">✎</button></td>
+          <td>${s.tarih < bugunTarihi ? ''
+              : `<button class="dugme dugme-ikincil dugme-kucuk" data-duzenle="${s.menu_id}" title="Düzenle">✎</button>`}</td>
         </tr>`).join('');
   } catch (hata) {
     bildir(mesaj, hata.message);
@@ -96,6 +97,8 @@ async function duzenle(olay) {
   try {
     const m = await api('/yonetici/menuler/' + dugme.dataset.duzenle);
     duzenlenenId = m.id;
+    aramaKutusu.value = '';
+    yemekAra();
     form.yemekhaneId.value = m.yemekhane_id;
     form.tarih.value = m.tarih;
     form.ogunId.value = m.ogun_id;

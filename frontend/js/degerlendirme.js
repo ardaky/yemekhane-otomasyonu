@@ -77,7 +77,7 @@ async function gonder(olay) {
     });
     bildir(mesaj, 'Teşekkürler, değerlendirmen kaydedildi.', 'basari');
     form.remove();
-    setTimeout(yukle, 500); // listeler replikadan
+    setTimeout(() => yukle().catch((hata) => bildir(mesaj, hata.message)), 500); // listeler replikadan
   } catch (hata) {
     bildir(mesaj, hata.message);
     dugme.disabled = false;

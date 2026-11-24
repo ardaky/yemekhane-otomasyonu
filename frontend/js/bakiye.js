@@ -41,9 +41,8 @@ async function yukle(olay) {
     bildir(mesaj, `Yükleme yapıldı. Bakiyen ${tl(sonuc.bakiye)}.`, 'basari');
     form.reset();
     // hareket listesi replikadan geliyor, birazdan yenile; bakiyeye dokunma
-    setTimeout(async () => {
-      const { hareketler } = await api('/bakiye');
-      hareketleriCiz(hareketler);
+    setTimeout(() => {
+      api('/bakiye').then(({ hareketler }) => hareketleriCiz(hareketler)).catch(() => {});
     }, 500);
   } catch (hata) {
     bildir(mesaj, hata.message);

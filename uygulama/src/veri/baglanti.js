@@ -12,10 +12,27 @@ const ayarlar = {
   dateStrings: true,     // tarihler '2026-11-24' gibi string gelsin
   decimalNumbers: true,  // bakiye ve fiyatlar sayı olarak gelsin
   connectionLimit: 10,
+  connectTimeout: 3000,
 };
 
 const yazma = mysql.createPool({ ...ayarlar, host: process.env.DB_YAZMA_HOST });
-const okuma = mysql.createPool({ ...ayarlar, host: process.env.DB_OKUMA_HOST });
+const replika = mysql.createPool({ ...ayarlar, host: process.env.DB_OKUMA_HOST });
+
+// Replikaya hiç bağlanılamazsa (container durmuşsa) okumayı kaynaktan yapıyoruz,
+// böylece replika çökünce bütün ekranlar hata vermiyor.
+const BAGLANTI_HATALARI = ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH', 'PROTOCOL_CONNECTION_LOST'];
+
+const okuma = {
+  async query(sql, parametreler) {
+    try {
+      return await replika.query(sql, parametreler);
+    } catch (err) {
+      if (!BAGLANTI_HATALARI.includes(err.code)) throw err;
+      console.warn('Replikaya ulaşılamadı, kaynaktan okunuyor:', err.code);
+      return yazma.query(sql, parametreler);
+    }
+  },
+};
 
 // Stored procedure çağırır, dönen ilk satırı verir.
 // mysql2'de CALL sonucu [[satırlar], OkPacket] şeklinde geliyor.

@@ -65,9 +65,10 @@ function porsiyonSecimi(m) {
     </div>`;
 }
 
-// ekranda gösterilecek fiyat: rezervasyon yarımsa ya da yarım seçiliyse yarım fiyat
+// ekranda gösterilecek fiyat: rezervasyon varsa onun porsiyonuna, yoksa seçime göre
 function gosterilenFiyat(m, secilen) {
-  const yarim = m.rezervasyonDurum === 'aktif' ? m.rezervasyonPorsiyon === 'yarim' : secilen === 'yarim';
+  const rezervasyonVar = m.rezervasyonDurum === 'aktif' || m.rezervasyonDurum === 'kullanildi';
+  const yarim = rezervasyonVar ? m.rezervasyonPorsiyon === 'yarim' : secilen === 'yarim';
   return tl(yarim ? m.yarimFiyat : m.fiyat);
 }
 
@@ -129,6 +130,7 @@ async function rezervasyonYap(olay) {
     // Listeyi replikadan tekrar çekmiyoruz, replika bu rezervasyonu henüz
     // almamış olabilir. Onun yerine o menüyü burada güncelliyoruz.
     const m = menuler.find((x) => x.menuId === menuId);
+    if (!m) return; // bu arada hafta ya da yemekhane değiştirildiyse liste zaten yeni
     m.rezervasyonDurum = 'aktif';
     m.rezervasyonPorsiyon = sonuc.porsiyon;
     m.bosYer -= 1;
