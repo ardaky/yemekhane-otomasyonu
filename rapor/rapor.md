@@ -239,3 +239,95 @@ Bakiyesi 12,50 TL olan öğrenci 40 TL'lik bir menüye rezervasyon yapmak istedi
 ## Geniş ekran
 
 ![Haftalık menü, 1280 px](ekran/10-haftalik-masaustu.png){width=90%}
+
+# Aşama 3 · Redis
+
+Redis iki iş için kullanılır. İkisi de `src/onbellek/redis.js`'teki tek bağlantıyı paylaşır.
+Komutların ve çıktıların tamamı `rapor/kanitlar/asama-3.txt` dosyasındadır; aynı denemeyi
+`bash rapor/kanitlar/asama-3.sh` ile tekrar çalıştırmak mümkündür.
+
+| Görev | Anahtar | Süre | Ne zaman silinir |
+|---|---|---|---|
+| Menü önbelleği | `menu:{yemekhane_id}:{tarih}:{ogun_id}` | Menünün gününün sonuna kadar (`EXAT`) | Yönetici o menüyü değiştirdiğinde |
+| Oturum | `oturum:{token}` | 30 dakika, her istekte yenilenir (`EXPIRE`) | Çıkış yapıldığında |
+
+Önbelleğe yalnızca bütün kullanıcılar için aynı olan menü bilgisi yazılır (yemekler, kalori,
+alerjenler, iki fiyat). Kullanıcının rolüne göre fiyat seçimi önbellekten okunduktan sonra
+controller'da yapılır; böylece tek kayıt herkese hizmet eder.
+
+## Menü önbelleği: ilk istek veritabanından, ikincisi Redis'ten
+
+```text
+$ curl -s -b cerez 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3'
+$ curl -s -b cerez 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3'
+
+$ docker compose logs --no-log-prefix uygulama | grep 'menu:1:2026-11-24:3'
+[önbellek] menu:1:2026-11-24:3 -> veritabanından okundu, Redis'e yazıldı
+[önbellek] menu:1:2026-11-24:3 -> Redis'ten geldi
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-24:3
+
+$ docker compose exec -T redis redis-cli TTL menu:1:2026-11-24:3
+49243
+```
+
+TTL, kaydın günün 23.59.59'unda silineceğini gösterir (saat 10.19'da yaklaşık 13,7 saat).
+
+## Menü güncellenince eski kayıt siliniyor
+
+Yönetici panelinden aynı menüye bir yemek (Ayran) eklendi:
+
+```text
+$ curl -s -b yonetici -X PUT http://localhost:8080/api/yonetici/menuler/45 \
+    -H 'Content-Type: application/json' \
+    -d '{"ogrenciFiyati":40,"personelFiyati":90,"yemekIdler":[4, 10, 25, 40, 50]}'
+{"menuId":45}
+
+$ docker compose exec -T redis redis-cli EXISTS menu:1:2026-11-24:3
+0
+
+$ curl -s -b cerez 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3'
+['Yayla Çorbası', 'Tavuk Sote', 'Fırın Makarna', 'Aşure', 'Ayran']
+
+$ docker compose logs --no-log-prefix uygulama | grep 'menu:1:2026-11-24:3' | tail -3
+[önbellek] menu:1:2026-11-24:3 -> Redis'ten geldi
+[önbellek] menu:1:2026-11-24:3 -> silindi (1 kayıt)
+[önbellek] menu:1:2026-11-24:3 -> veritabanından okundu, Redis'e yazıldı
+```
+
+Silmenin bir ayrıntısı var: güncelleme kaynağa yazılır, önbellek ise boşalınca replikadan
+doldurulur. Güncellemeden hemen sonra gelen bir istek, değişikliği henüz almamış replikadan eski
+menüyü okuyup önbelleğe geri yazabilir (replikasyon gecikmesi). Bunu önlemek için anahtar bir
+saniye sonra bir kez daha silinir (`src/onbellek/menuOnbellegi.js`).
+
+## Oturum Redis'te ve uygulama yeniden başlasa da düşmüyor
+
+```text
+$ docker compose exec -T redis redis-cli --scan --pattern 'oturum:*'
+oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+
+$ docker compose exec -T redis redis-cli GET oturum:9fb4f71c...
+{"kullaniciId":7,"rol":"ogrenci","ad":"Mehmet"}
+
+$ docker compose exec -T redis redis-cli TTL oturum:9fb4f71c...
+1795
+$ curl -s -b cerez http://localhost:8080/api/ben
+$ docker compose exec -T redis redis-cli TTL oturum:9fb4f71c...
+1800
+
+$ docker compose restart uygulama
+$ curl -s -b cerez http://localhost:8080/api/ben
+{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"251229002@ktun.edu.tr","rol":"ogrenci",...}
+
+$ curl -s -b cerez -X POST http://localhost:8080/api/cikis
+{"tamam":true}
+$ docker compose exec -T redis redis-cli EXISTS oturum:9fb4f71c...
+0
+```
+
+Her istekte süre yeniden 1800 saniyeye çekilir. Aşama 2'de oturumlar uygulamanın belleğinde
+tutuluyordu ve container yeniden başlayınca kayboluyordu; Redis'e taşındıktan sonra uygulama
+yeniden başlatıldığında aynı çerezle istek hâlâ kabul edilir. Redis'in kendisi de AOF ile
+(`--appendonly yes`) veriyi diske yazdığı için Redis yeniden başlasa da oturumlar kalır.
+Çıkışta kayıt silinir ve aynı çerez artık kabul edilmez.

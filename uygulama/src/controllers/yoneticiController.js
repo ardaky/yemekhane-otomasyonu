@@ -1,5 +1,6 @@
 // Yönetici paneli: menü oluşturma/düzenleme, doluluk ve puan raporu
 const yoneticiVerisi = require('../veri/yoneticiVerisi');
+const menuOnbellegi = require('../onbellek/menuOnbellegi');
 const { KullaniciHatasi } = require('../hatalar');
 const { tamSayi, tarih, bugun } = require('./yardimci');
 
@@ -48,13 +49,19 @@ async function olustur(req, res) {
     ...menuGovdesi(govde),
   };
   const menuId = await yoneticiVerisi.menuOlustur(menu);
+  // Yeni menü için önbellekte kayıt olmaz (boş menü önbelleğe yazılmaz);
+  // yine de aynı anahtar varsa temizlenir
+  await menuOnbellegi.sil(menu.yemekhaneId, menu.tarih, menu.ogunId);
   res.status(201).json({ menuId });
 }
 
 // PUT /api/yonetici/menuler/:id
+// Menü değişince önbellekteki eski kaydı silinir; bir sonraki istek yeni
+// menüyü veritabanından okuyup önbelleğe yazar.
 async function guncelle(req, res) {
   const menuId = tamSayi(req.params.id, 'menü');
-  await yoneticiVerisi.menuGuncelle(menuId, menuGovdesi(req.body || {}));
+  const m = await yoneticiVerisi.menuGuncelle(menuId, menuGovdesi(req.body || {}));
+  await menuOnbellegi.sil(m.yemekhane_id, m.tarih, m.ogun_id);
   res.json({ menuId });
 }
 

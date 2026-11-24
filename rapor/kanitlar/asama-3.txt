@@ -1,0 +1,81 @@
+# Aşama 3 kanıtları · 24.11.2026 10:19
+
+## 1. Oturum Redis'te tutuluyor (oturum:{token}, 30 dakika)
+
+$ curl -s -c /tmp/tmp.lEOYoxE60C -X POST http://localhost:8080/api/giris -H 'Content-Type: application/json' -d '{"eposta":"251229002@ktun.edu.tr","sifre":"12345"}'
+{"kullaniciId":7,"rol":"ogrenci","ad":"Mehmet"}
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'oturum:*'
+oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+
+$ docker compose exec -T redis redis-cli GET oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+{"kullaniciId":7,"rol":"ogrenci","ad":"Mehmet"}
+
+$ docker compose exec -T redis redis-cli TTL oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+1799
+
+$ docker compose exec -T redis redis-cli TTL oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+1795
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C http://localhost:8080/api/ben
+{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"251229002@ktun.edu.tr","rol":"ogrenci","ogrenci_no":"251229002","bakiye":355}
+# her istekte süre yeniden 30 dakikaya (1800 sn) çekilir:
+
+$ docker compose exec -T redis redis-cli TTL oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+1800
+
+## 2. Menü önbelleği: ilk istek veritabanından, ikincisi Redis'ten
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3' | head -c 160; echo
+{"menu":{"menuId":45,"tarih":"2026-11-24","yemekhane":"Merkez Yemekhane","ogun":"Akşam","rezervasyonSon":"2026-11-24 15:00:00","ogrenciFiyati":40,"personelFiya
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3' | head -c 160; echo
+{"menu":{"menuId":45,"tarih":"2026-11-24","yemekhane":"Merkez Yemekhane","ogun":"Akşam","rezervasyonSon":"2026-11-24 15:00:00","ogrenciFiyati":40,"personelFiya
+
+$ docker compose logs --no-log-prefix uygulama | grep 'menu:1:2026-11-24:3' | tail -2
+[önbellek] menu:1:2026-11-24:3 -> veritabanından okundu, Redis'e yazıldı
+[önbellek] menu:1:2026-11-24:3 -> Redis'ten geldi
+
+$ docker compose exec -T redis redis-cli --scan --pattern 'menu:*'
+menu:1:2026-11-24:3
+
+$ docker compose exec -T redis redis-cli TTL menu:1:2026-11-24:3
+49243
+# TTL, bu günün 23:59:59'una kadar kalan saniyedir
+
+## 3. Yönetici menüyü değiştirince eski kayıt siliniyor
+# menü 45, yemekler: [4, 10, 25, 40] -> [4, 10, 25, 40, 50] (Ayran eklendi)
+
+$ curl -s -b /tmp/tmp.tIHYIfPCOb -X PUT http://localhost:8080/api/yonetici/menuler/45 -H 'Content-Type: application/json' -d '{"ogrenciFiyati":40,"personelFiyati":90,"yemekIdler":[4, 10, 25, 40, 50]}'
+{"menuId":45}
+
+$ docker compose exec -T redis redis-cli EXISTS menu:1:2026-11-24:3
+0
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C 'http://localhost:8080/api/menu?yemekhane=1&tarih=2026-11-24&ogun=3' | python3 -c "import sys,json;print([y['ad'] for y in json.load(sys.stdin)['menu']['yemekler']])"
+['Yayla Çorbası', 'Tavuk Sote', 'Fırın Makarna', 'Aşure', 'Ayran']
+
+$ docker compose logs --no-log-prefix uygulama | grep 'menu:1:2026-11-24:3' | tail -3
+[önbellek] menu:1:2026-11-24:3 -> Redis'ten geldi
+[önbellek] menu:1:2026-11-24:3 -> silindi (1 kayıt)
+[önbellek] menu:1:2026-11-24:3 -> veritabanından okundu, Redis'e yazıldı
+
+## 4. Uygulama container'ı yeniden başlasa da oturum düşmüyor
+
+$ docker compose restart uygulama
+ Container yemekhane-uygulama-1 Restarting 
+ Container yemekhane-uygulama-1 Started 
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C http://localhost:8080/api/ben
+{"id":7,"ad":"Mehmet","soyad":"Yıldız","eposta":"251229002@ktun.edu.tr","rol":"ogrenci","ogrenci_no":"251229002","bakiye":355}
+
+## 5. Çıkış yapınca oturum kaydı siliniyor
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C -X POST http://localhost:8080/api/cikis
+{"tamam":true}
+
+$ docker compose exec -T redis redis-cli EXISTS oturum:9fb4f71ce70c199cb9dc33a8f3610e32ff2e859bb6ab06532bb76fb174d2e753
+0
+
+$ curl -s -b /tmp/tmp.lEOYoxE60C http://localhost:8080/api/ben
+{"hata":"Oturumunuz kapalı. Lütfen giriş yapın."}

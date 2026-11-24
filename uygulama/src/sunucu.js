@@ -10,6 +10,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const rotalar = require('./rotalar');
 const { hataYakalayici } = require('./hatalar');
+const redis = require('./onbellek/redis');
 
 const app = express();
 
@@ -34,6 +35,16 @@ app.use('/api', (req, res) => res.status(404).json({ hata: 'Böyle bir adres yok
 app.use(hataYakalayici);
 
 const PORT = 8000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Uygulama ${PORT} portunda dinliyor`);
-});
+
+// Önce Redis'e bağlan (oturumlar ve menü önbelleği orada), sonra istek kabul et
+redis.connect()
+  .then(() => {
+    console.log('Redis bağlantısı kuruldu');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Uygulama ${PORT} portunda dinliyor`);
+    });
+  })
+  .catch((err) => {
+    console.error('Redis bağlantısı kurulamadı:', err.message);
+    process.exit(1);   // restart: unless-stopped container'ı yeniden başlatır
+  });

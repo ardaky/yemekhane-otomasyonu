@@ -1,35 +1,35 @@
 // =====================================================================
-// Oturum deposu
-// Oturum bilgisi token -> { kullaniciId, rol, ad } olarak saklanır.
-// Süre 30 dakikadır ve her istekte yenilenir.
-// Aşama 2: uygulamanın belleğinde (Map) tutulur. Uygulama yeniden
-// başlarsa oturumlar kaybolur; Aşama 3'te Redis'e taşınacak.
+// Oturum deposu · Redis
+//   Anahtar : oturum:{token}
+//   Değer   : { kullaniciId, rol, ad } (JSON)
+//   Süre    : 30 dakika, her istekte yeniden 30 dakikaya çekilir
+//   Silinme : çıkış yapıldığında
+// Oturum uygulamanın belleğinde değil Redis'te durduğu için uygulama
+// container'ı yeniden başlasa da kullanıcının oturumu düşmez.
 // =====================================================================
 const crypto = require('crypto');
+const redis = require('../onbellek/redis');
 
-const SURE_MS = 30 * 60 * 1000;
-const oturumlar = new Map();
+const SURE_SN = 30 * 60;
+const anahtar = (token) => `oturum:${token}`;
 
 async function olustur(bilgi) {
   const token = crypto.randomBytes(32).toString('hex');
-  oturumlar.set(token, { bilgi, bitis: Date.now() + SURE_MS });
+  await redis.set(anahtar(token), JSON.stringify(bilgi), { EX: SURE_SN });
   return token;
 }
 
-// Token geçerliyse oturum bilgisini döndürür ve süreyi 30 dakika uzatır
+// Token geçerliyse oturum bilgisini döndürür ve süreyi 30 dakikaya yeniler
 async function getirVeYenile(token) {
-  const kayit = oturumlar.get(token);
+  if (!/^[0-9a-f]{64}$/.test(token)) return null;
+  const kayit = await redis.get(anahtar(token));
   if (!kayit) return null;
-  if (kayit.bitis < Date.now()) {
-    oturumlar.delete(token);
-    return null;
-  }
-  kayit.bitis = Date.now() + SURE_MS;
-  return kayit.bilgi;
+  await redis.expire(anahtar(token), SURE_SN);
+  return JSON.parse(kayit);
 }
 
 async function sil(token) {
-  oturumlar.delete(token);
+  await redis.del(anahtar(token));
 }
 
-module.exports = { olustur, getirVeYenile, sil, SURE_MS };
+module.exports = { olustur, getirVeYenile, sil };

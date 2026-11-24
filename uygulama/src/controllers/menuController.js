@@ -1,5 +1,6 @@
 // Günün menüsü ve haftalık menü
 const menuVerisi = require('../veri/menuVerisi');
+const menuOnbellegi = require('../onbellek/menuOnbellegi');
 const { tamSayi, tarih, bugun, rolFiyati } = require('./yardimci');
 
 async function secenekler(req, res) {
@@ -16,9 +17,14 @@ async function gununMenusu(req, res) {
   const ogunId = tamSayi(req.query.ogun, 'öğün');
   const gun = req.query.tarih ? tarih(req.query.tarih) : bugun();
 
-  const menu = await menuVerisi.gununMenusu(yemekhaneId, gun, ogunId);
+  // Önce Redis'e bak; yoksa replikadan oku ve Redis'e yaz
+  let menu = await menuOnbellegi.getir(yemekhaneId, gun, ogunId);
   if (!menu) {
-    return res.json({ menu: null });
+    menu = await menuVerisi.gununMenusu(yemekhaneId, gun, ogunId);
+    if (!menu) {
+      return res.json({ menu: null });
+    }
+    await menuOnbellegi.yaz(yemekhaneId, gun, ogunId, menu);
   }
 
   // Toplam kaloriyi uygulama toplar (view her yemek için ayrı satır verir)
