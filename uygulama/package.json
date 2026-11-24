@@ -1,0 +1,17 @@
+{
+  "name": "yemekhane-uygulama",
+  "version": "1.0.0",
+  "description": "Yemekhane Otomasyonu · Web API (Express)",
+  "main": "src/sunucu.js",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/sunucu.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.0"
+  }
+}
