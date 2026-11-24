@@ -472,3 +472,39 @@ alerjenUyarisi: True
 
 Haftalık menüde öğle ve akşamda "Tam / Yarım" seçimi çıkar, kahvaltıda çıkmaz; kullanıcının
 alerjenini içeren menülerde öğün adının yanında uyarı etiketi görünür.
+
+# Temiz kurulum testi
+
+Teslimden önce depo GitHub'dan boş bir klasöre klonlandı. Bilgisayardaki eski image'lar
+(`yemekhane-uygulama`, `yemekhane-frontend`) ve volume'lar silindikten sonra yalnızca şu komut
+çalıştırıldı:
+
+```text
+$ git clone https://github.com/ardaky/yemekhane-otomasyonu.git && cd yemekhane-otomasyonu
+$ docker compose up -d
+(72 saniye)
+$ docker compose ps -a
+frontend:      Up (healthy)
+mysql-primary: Up (healthy)
+mysql-replica: Up (healthy)
+redis:         Up (healthy)
+replica-setup: Exited (0)
+uygulama:      Up
+```
+
+Sıfırdan kurulumda `db/init` içindeki dört dosya sırayla çalışır: şema (01), örnek veri (02),
+test hesapları (03) ve değişiklik talebi (04). Replika kurulumu bunlardan sonra yapıldığı için
+replikada da `porsiyon` sütunu ve `kullanici_alerjenleri` tablosu hazır gelir. Temiz kurulumda
+giriş, yarım porsiyon rezervasyonu (24 TL), menü önbelleği (ilk istek veritabanından, ikincisi
+Redis'ten), Redis'te oturum kaydı ve bütün sayfalar (HTTP 200) denendi.
+
+# Test hesapları
+
+Bütün hesapların şifresi `12345`.
+
+| E-posta | Rol | Not |
+|---|---|---|
+| `leyla.arslan@ktun.edu.tr` | Yönetici | Profil → Yönetici paneli |
+| `murat.kaya@ktun.edu.tr` | Personel | Personel fiyatı |
+| `251229001@ktun.edu.tr` | Öğrenci (Ayşe Demir) | Bakiyesi 12,50 TL: "Bakiye yetersiz." |
+| `251229002@ktun.edu.tr` | Öğrenci (Mehmet Yıldız) | Normal bakiye, değerlendirilecek menüleri var |
